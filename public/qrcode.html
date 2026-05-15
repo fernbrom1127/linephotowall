@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>ℹ️ 上傳說明 | 回憶照片牆</title>
+    <style>
+        * { margin:0; padding:0; box-sizing:border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background: #fafafa;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            padding: 24px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            font-size: 24px;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .subtitle {
+            color: #666;
+            font-size: 14px;
+            margin-bottom: 24px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid #eee;
+        }
+        .section {
+            margin-bottom: 24px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid #eee;
+        }
+        .section h2 {
+            font-size: 18px;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .icon-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        .icon-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 8px 12px;
+            background: #f5f5f5;
+            border-radius: 12px;
+        }
+        .icon-symbol {
+            font-size: 28px;
+            width: 48px;
+            text-align: center;
+        }
+        .icon-text {
+            flex: 1;
+        }
+        .icon-name {
+            font-weight: bold;
+            font-size: 16px;
+        }
+        .icon-desc {
+            font-size: 13px;
+            color: #666;
+        }
+        .qrcode-box {
+            text-align: center;
+            padding: 20px;
+            background: #f5f5f5;
+            border-radius: 16px;
+            margin: 16px 0;
+        }
+        .qrcode-box img {
+            max-width: 200px;
+            width: 100%;
+            height: auto;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        .step-list {
+            list-style: none;
+            padding: 0;
+        }
+        .step-list li {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 10px 0;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        .step-number {
+            width: 28px;
+            height: 28px;
+            background: #667eea;
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            font-weight: bold;
+        }
+        .avatar-demo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px;
+            background: #f5f5f5;
+            border-radius: 12px;
+            margin: 12px 0;
+        }
+        .avatar-circle {
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            background: #ddd;
+            border: 2px solid #667eea;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+        }
+        .avatar-circle.current-user {
+            border-color: #ff4444;
+            box-shadow: 0 0 0 2px #ff4444;
+        }
+        .back-btn {
+            display: inline-block;
+            background: #667eea;
+            color: white;
+            text-decoration: none;
+            padding: 10px 20px;
+            border-radius: 25px;
+            margin-top: 20px;
+            text-align: center;
+        }
+        .back-btn:hover {
+            background: #5a67d8;
+        }
+        .note {
+            background: #fff3e0;
+            padding: 12px;
+            border-radius: 12px;
+            font-size: 13px;
+            color: #856404;
+            margin-top: 16px;
+        }
+        @media (max-width: 480px) {
+            .container { padding: 16px; }
+            .icon-symbol { font-size: 24px; width: 40px; }
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>📸 回憶照片牆</h1>
+    <div class="subtitle">ℹ️ 快速上手說明書</div>
+
+    <!-- QR Code 掃描加入 -->
+    <div class="section">
+        <h2>🔗 第一步：加入好友</h2>
+        <div class="qrcode-box">
+            <img src="324urwit.png" alt="LINE 官方帳號 QR Code" onerror="this.src='https://via.placeholder.com/200?text=請放置QR Code圖片'">
+            <p style="margin-top: 12px; font-size: 14px; color: #666;">👆 掃描 QR Code 加入 LINE 官方帳號</p>
+        </div>
+        <ul class="step-list">
+            <li><span class="step-number">1</span> 打開 LINE</li>
+            <li><span class="step-number">2</span> 點擊「加入好友」掃描 QR Code</li>
+            <li><span class="step-number">3</span> 加入後，在聊天室上傳照片即可</li>
+        </ul>
+    </div>
+
+    <!-- 上傳照片說明 -->
+    <div class="section">
+        <h2>📸 第二步：上傳照片</h2>
+        <ul class="step-list">
+            <li><span class="step-number">1</span> 打開與機器人的聊天室</li>
+            <li><span class="step-number">2</span> 點擊「+」選擇照片</li>
+            <li><span class="step-number">3</span> 傳送後可輸入說明文字（1分鐘內）</li>
+            <li><span class="step-number">4</span> 照片會自動出現在照片牆</li>
+        </ul>
+        <div class="note">
+            💡 提示：傳送「略過」可以不加說明文字，1分鐘內沒輸入也不會影響照片儲存。
+        </div>
+    </div>
+
+    <!-- 導覽列圖示說明 -->
+    <div class="section">
+        <h2>🧭 第三步：認識導覽列</h2>
+        <div class="icon-list">
+            <div class="icon-item">
+                <div class="icon-symbol">📸</div>
+                <div class="icon-text">
+                    <div class="icon-name">回首頁</div>
+                    <div class="icon-desc">回到首頁，查看全部照片（時間排序）</div>
+                </div>
+            </div>
+        
+            <div class="icon-item">
+                <div class="icon-symbol">ℹ️</div>
+                <div class="icon-text">
+                    <div class="icon-name">使用說明</div>
+                    <div class="icon-desc">快速上手說明書，圖示解說</div>
+                </div>
+            </div>
+            
+            <div class="icon-item">
+                <div class="icon-symbol">🎲</div>
+                <div class="icon-text">
+                    <div class="icon-name">隨機探索</div>
+                    <div class="icon-desc">隨機排列照片，發現驚喜回憶</div>
+                </div>
+            </div>
+            <div class="icon-item">
+                <div class="icon-symbol">👥</div>
+                <div class="icon-text">
+                    <div class="icon-name">群組成員</div>
+                    <div class="icon-desc">查看所有成員頭像，點頭像進入個人相簿</div>
+                </div>
+            </div>
+            <div class="icon-item">
+                <div class="icon-symbol">👤</div>
+                <div class="icon-text">
+                    <div class="icon-name">我的相簿</div>
+                    <div class="icon-desc">查看自己的個人相簿（需登入）</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 成員頭像說明 -->
+    <div class="section">
+        <h2>👥 第四步：成員頭像</h2>
+        <div class="avatar-demo">
+            <div class="avatar-circle">👤</div>
+            <div class="icon-text">
+                <div class="icon-name">一般成員</div>
+                <div class="icon-desc">點擊可查看該成員的個人相簿</div>
+            </div>
+        </div>
+        <div class="avatar-demo">
+            <div class="avatar-circle current-user">👤</div>
+            <div class="icon-text">
+                <div class="icon-name">我自己（紅色邊框）</div>
+                <div class="icon-desc">點擊可進入自己的相簿，可刪除照片、設頭像</div>
+            </div>
+        </div>
+        <div class="note">
+            💡 提示：只有自己的照片才能「刪除」和「設為頭像」。
+        </div>
+    </div>
+
+
+     <!-- 個人相簿管理功能 -->
+<div class="section">
+    <h2>📷 第五步：管理自己的照片</h2>
+    <div class="icon-list">
+            <div class="icon-item">
+                <div class="icon-symbol">←</div>
+                <div class="icon-text">
+                    <div class="icon-name">返回</div>
+                    <div class="icon-desc">個人相簿中點擊「←」返回群組頁</div>
+                </div>
+            </div>
+        </div>
+    
+    <div class="icon-list">
+        <div class="icon-item">
+            <div class="icon-symbol">🗑️</div>
+            <div class="icon-text">
+                <div class="icon-name">刪除照片</div>
+                <div class="icon-desc">在個人相簿中，點擊照片右上角的垃圾桶圖示，可刪除自己上傳的照片</div>
+            </div>
+        </div>
+        <div class="icon-item">
+            <div class="icon-symbol">👤</div>
+            <div class="icon-text">
+                <div class="icon-name">設為頭像</div>
+                <div class="icon-desc">在個人相簿中，點擊照片上的 👤 按鈕，可將該照片設為你的個人頭像</div>
+            </div>
+        </div>
+        <div class="icon-item">
+            <div class="icon-symbol">🏷️</div>
+            <div class="icon-text">
+                <div class="icon-name">編輯標籤</div>
+                <div class="icon-desc">點擊照片上的 🏷️ 按鈕，可為照片加上「風景🌄 / 美食🍜 / 人物👤」分類</div>
+            </div>
+        </div>
+    </div>
+    <div class="note">
+        💡 提示：只有「自己的照片」才會出現刪除、設頭像、編輯標籤的圖示。
+    </div>
+</div>
+
+<!-- 群組頁篩選說明 -->
+<div class="section">
+    <h2>🔍 第六步：群組照片篩選(暫時隱藏)</h2>
+    <div class="icon-list">
+        <div class="icon-item">
+            <div class="icon-symbol">🏠🌄🍜👤</div>
+            <div class="icon-text">
+                <div class="icon-name">分類篩選</div>
+                <div class="icon-desc">點擊 🏠(全部) / 🌄(風景) / 🍜(美食) / 👤(人物)，可篩選群組照片</div>
+            </div>
+        </div>
+        <div class="icon-item">
+            <div class="icon-symbol">📅📆</div>
+            <div class="icon-text">
+                <div class="icon-name">日期篩選</div>
+                <div class="icon-desc">選擇年份和月份，只看該月的照片</div>
+            </div>
+        </div>
+    </div>
+</div>
+    <!-- 標籤篩選說明 -->
+    <div class="section">
+        <h2>🏷️ 第七步：個人分類篩選(暫時隱藏)</h2>
+        <div class="icon-list">
+            <div class="icon-item">
+                <div class="icon-symbol">🏠</div>
+                <div class="icon-text"><div class="icon-name">全部照片</div></div>
+            </div>
+            <div class="icon-item">
+                <div class="icon-symbol">🌄</div>
+                <div class="icon-text"><div class="icon-name">風景分類</div></div>
+            </div>
+            <div class="icon-item">
+                <div class="icon-symbol">🍜</div>
+                <div class="icon-text"><div class="icon-name">美食分類</div></div>
+            </div>
+            <div class="icon-item">
+                <div class="icon-symbol">👤</div>
+                <div class="icon-text"><div class="icon-name">人物分類</div></div>
+            </div>
+        </div>
+        <div class="note">
+            💡 提示：群組頁篩選列可依標籤和年月篩選照片。
+        </div>
+    </div>
+
+    <!-- 按讚與留言 -->
+    <div class="section">
+        <h2>❤️ 第八步：互動功能(暫時隱藏)</h2>
+        <div class="icon-list">
+            <div class="icon-item">
+                <div class="icon-symbol">❤️</div>
+                <div class="icon-text">
+                    <div class="icon-name">按讚</div>
+                    <div class="icon-desc">點擊愛心為喜歡的照片按讚</div>
+                </div>
+            </div>
+            <div class="icon-item">
+                <div class="icon-symbol">💬</div>
+                <div class="icon-text">
+                    <div class="icon-name">留言</div>
+                    <div class="icon-desc">點擊留言圖示，寫下你的感想</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <a href="/photowall" class="back-btn">← 返回照片牆</a>
+</div>
+</body>
+</html>
