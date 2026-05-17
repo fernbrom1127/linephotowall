@@ -144,17 +144,15 @@
 <!-- 主導航列 -->
 <div id="mainNavbar" class="navbar">
     <div class="navbar-content">
-        <div class="nav-left">
-    <button id="googleNavBtn" class="nav-icon" onclick="toggleGoogleLogin()">🎯</button>
-    <button id="uploadNavBtn" class="nav-icon" onclick="goToUploadPage()" style="opacity:0.5;">📸</button>
-    <button class="nav-icon" onclick="window.location.href='qrcode.html'">ℹ️</button>
+    <div class="nav-left">
+    <button class="nav-icon" onclick="showMyAlbum()" title="LINE 個人相簿">👤</button>
+    <button id="googleNavBtn" class="nav-icon" onclick="handleGoogleAction()" title="Google 登入">🎯</button>
+    <button class="nav-icon" onclick="window.location.href='qrcode.html'" title="說明">ℹ️</button>
 </div>
-        <div class="nav-right">
-            <button class="nav-icon" onclick="showRandom()">🎲</button>
-            <button class="nav-icon" onclick="showTimeline()">🏠</button>
-            <button class="nav-icon" onclick="showGroup()">👥</button>
-            <button class="nav-icon" onclick="showMyAlbum()">👤</button>
-        </div>
+<div class="nav-right">
+    <button class="nav-icon" onclick="showGroup()" title="群組">👥</button>
+    <button class="nav-icon" onclick="showTimeline()" title="首頁">🏠</button>
+</div>
     </div>
 </div>
 
