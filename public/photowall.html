@@ -145,10 +145,10 @@
 <div id="mainNavbar" class="navbar">
     <div class="navbar-content">
         <div class="nav-left">
-            <button id="googleNavBtn" class="nav-icon" onclick="toggleGoogleLogin()">🎯</button>
-            <button id="uploadNavBtn" class="nav-icon" onclick="goToUploadPage()" style="opacity:0.5;">📸</button>
-            <button class="nav-icon" onclick="window.location.href='qrcode.html'">ℹ️</button>
-        </div>
+    <button id="googleNavBtn" class="nav-icon" onclick="toggleGoogleLogin()">🎯</button>
+    <button id="uploadNavBtn" class="nav-icon" onclick="goToUploadPage()" style="opacity:0.5;">📸</button>
+    <button class="nav-icon" onclick="window.location.href='qrcode.html'">ℹ️</button>
+</div>
         <div class="nav-right">
             <button class="nav-icon" onclick="showRandom()">🎲</button>
             <button class="nav-icon" onclick="showTimeline()">🏠</button>
@@ -236,15 +236,33 @@ function escapeHtml(t){ if(!t) return ''; const div=document.createElement('div'
 
 // ========== Google 登入邏輯 ==========
 // 初始化：從 localStorage 讀取已登入狀態
+// ========== Google 登入邏輯（強制彈窗版本）==========
+
+// 初始化：從 localStorage 讀取已登入狀態
 function initGoogleLogin() {
     const savedUser = localStorage.getItem('googleUser');
     if (savedUser) {
         try {
             googleUser = JSON.parse(savedUser);
+            // 檢查 token 是否過期（可選）
             updateGoogleButtonForLoggedIn();
             enableUploadButton();
         } catch(e) { console.error(e); }
     }
+    
+    // 預先載入 Google 帳戶庫（但不自動彈窗）
+    loadGoogleAccountsLibrary();
+}
+
+// 載入 Google 帳戶庫
+function loadGoogleAccountsLibrary() {
+    if (window.google && window.google.accounts) return;
+    
+    const script = document.createElement('script');
+    script.src = 'https://accounts.google.com/gsi/client';
+    script.async = true;
+    script.defer = true;
+    document.head.appendChild(script);
 }
 
 // 切換登入/登出
@@ -253,38 +271,79 @@ function toggleGoogleLogin() {
         // 已登入：登出
         logout();
     } else {
-        // 未登入：觸發 Google 登入
-        triggerGoogleLogin();
+        // 未登入：強制彈出登入視窗
+        triggerGoogleLoginPopup();
     }
 }
 
-// 觸發 Google 登入彈窗
-function triggerGoogleLogin() {
-    if (window.google && window.google.accounts && window.google.accounts.id) {
-        window.google.accounts.id.initialize({
-            client_id: GOOGLE_CLIENT_ID,
-            callback: handleGoogleLogin,
-            auto_select: false
-        });
-        window.google.accounts.id.prompt(); // 顯示 One Tap 彈窗
-    } else {
-        // 備用方案：重新載入 SDK
-        const script = document.createElement('script');
-        script.src = 'https://accounts.google.com/gsi/client';
-        script.onload = () => {
-            window.google.accounts.id.initialize({
-                client_id: GOOGLE_CLIENT_ID,
-                callback: handleGoogleLogin
-            });
-            window.google.accounts.id.prompt();
-        };
-        document.head.appendChild(script);
+// 強制彈出 Google 登入視窗（使用 redirect_uri 方式）
+function triggerGoogleLoginPopup() {
+    // 確保 Google 帳戶庫已載入
+    if (!window.google || !window.google.accounts) {
+        // 如果還沒載入，等待一下再試
+        const checkInterval = setInterval(() => {
+            if (window.google && window.google.accounts) {
+                clearInterval(checkInterval);
+                doGoogleLogin();
+            }
+        }, 100);
+        return;
     }
+    doGoogleLogin();
+}
+
+function doGoogleLogin() {
+    // 使用 ID 令牌登入（不需要重新導向）
+    window.google.accounts.id.initialize({
+        client_id: GOOGLE_CLIENT_ID,
+        callback: handleGoogleLogin,
+        auto_select: false,
+        prompt_parent_id: 'googleLoginContainer' // 指定彈窗容器
+    });
+    
+    // 強制顯示登入選擇器（不是 One Tap）
+    window.google.accounts.id.prompt((notification) => {
+        if (notification.isNotDisplayed()) {
+            // One Tap 無法顯示時，改用 popup 模式
+            console.log('One Tap 無法顯示，改用彈窗模式', notification.getNotDisplayedReason());
+            fallbackGoogleLogin();
+        }
+    });
+}
+
+// 備用方案：使用 OAuth 2.0 彈窗（更可靠）
+function fallbackGoogleLogin() {
+    const redirectUri = window.location.origin + '/auth/google/callback';
+    const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?` +
+        `client_id=${GOOGLE_CLIENT_ID}&` +
+        `redirect_uri=${encodeURIComponent(redirectUri)}&` +
+        `response_type=id_token&` +
+        `scope=openid email profile&` +
+        `nonce=${Math.random().toString(36).substring(2)}`;
+    
+    // 開啟彈窗
+    const popup = window.open(authUrl, 'GoogleLogin', 
+        'width=500,height=600,left=' + (window.screen.width/2-250) + 
+        ',top=' + (window.screen.height/2-300));
+    
+    // 監聽回調（需要在後端新增對應 endpoint）
+    window.addEventListener('message', function(event) {
+        if (event.origin !== window.location.origin) return;
+        if (event.data && event.data.type === 'google_token') {
+            popup.close();
+            handleGoogleLogin({ credential: event.data.token });
+        }
+    });
 }
 
 // 處理 Google 登入回調
 async function handleGoogleLogin(response) {
     if (!response.credential) return;
+    
+    // 顯示載入狀態
+    const btn = document.getElementById('googleNavBtn');
+    const originalHtml = btn.innerHTML;
+    btn.innerHTML = '⏳';
     
     try {
         const res = await fetch('/api/auth/google', {
@@ -308,10 +367,12 @@ async function handleGoogleLogin(response) {
             alert(`✅ 歡迎，${data.displayName || 'Google 用戶'}！現在可以使用網頁上傳功能了`);
         } else {
             alert('登入失敗：' + (data.error || '未知錯誤'));
+            btn.innerHTML = originalHtml;
         }
     } catch (error) {
         console.error('Google 登入錯誤:', error);
         alert('登入失敗，請稍後再試');
+        btn.innerHTML = originalHtml;
     }
 }
 
@@ -326,6 +387,9 @@ function updateGoogleButtonForLoggedIn() {
 
 // 登出
 function logout() {
+    if (window.google && window.google.accounts && window.google.accounts.id) {
+        window.google.accounts.id.disableAutoSelect();
+    }
     googleUser = null;
     localStorage.removeItem('googleUser');
     const btn = document.getElementById('googleNavBtn');
@@ -337,7 +401,7 @@ function logout() {
     alert('已登出');
 }
 
-// 啟用上傳按鈕
+// 啟用/停用上傳按鈕
 function enableUploadButton() {
     const uploadBtn = document.getElementById('uploadNavBtn');
     if (uploadBtn) {
@@ -346,7 +410,6 @@ function enableUploadButton() {
     }
 }
 
-// 停用上傳按鈕
 function disableUploadButton() {
     const uploadBtn = document.getElementById('uploadNavBtn');
     if (uploadBtn) {
