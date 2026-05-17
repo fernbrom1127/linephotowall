@@ -370,29 +370,42 @@ function renderPhotoGrid(photos) {
     return html;
 }
 // ========== 首頁按鈕（點擊/長按）==========
+// ========== 首頁按鈕（點擊/長按）==========
 let homeLongPressTimer = null;
+let homeButton = null;  // 先宣告，稍後在 DOM 載入後賦值
 
 // 處理首頁按鈕點擊
 function handleHomeClick() {
-    // 取消任何正在進行的長按計時
     if (homeLongPressTimer) {
         clearTimeout(homeLongPressTimer);
         homeLongPressTimer = null;
     }
-    // 執行首頁功能
+    const btn = document.getElementById('homeButton');
+    if (btn && btn.innerHTML !== '🏠') {
+        btn.innerHTML = '🏠';
+        btn.title = '點擊：首頁 / 長按：隨機';
+    }
     showTimeline();
 }
 
 // 開始長按計時
 function startHomeLongPress() {
+    const btn = document.getElementById('homeButton');
     homeLongPressTimer = setTimeout(() => {
-        // 長按觸發：執行隨機功能
-        showRandom();
-        // 提供觸覺回饋（可選）
-        const btn = document.getElementById('homeButton');
-        btn.style.transform = 'scale(0.95)';
-        setTimeout(() => { btn.style.transform = ''; }, 200);
-    }, 500); // 長按 0.5 秒觸發
+        if (btn) {
+            btn.innerHTML = '🎲';
+            btn.title = '放開進入隨機模式';
+            if (navigator.vibrate) navigator.vibrate(50);
+        }
+        setTimeout(() => {
+            showRandom();
+            if (btn) {
+                btn.innerHTML = '🏠';
+                btn.title = '點擊：首頁 / 長按：隨機';
+            }
+        }, 100);
+        homeLongPressTimer = null;
+    }, 300);
 }
 
 // 取消長按計時
@@ -400,8 +413,15 @@ function cancelHomeLongPress() {
     if (homeLongPressTimer) {
         clearTimeout(homeLongPressTimer);
         homeLongPressTimer = null;
+        const btn = document.getElementById('homeButton');
+        if (btn && btn.innerHTML === '🎲') {
+            btn.innerHTML = '🏠';
+            btn.title = '點擊：首頁 / 長按：隨機';
+        }
     }
 }
+
+
 // ========== 頁面切換 ==========
 function setNavToDefault() {
     mainNavbar.style.display = 'flex';
@@ -606,9 +626,14 @@ async function executeDelete() {
     } catch(e) { alert('刪除失敗'); }
 }
 
+
 // ========== 啟動 ==========
-initGoogleLogin();
-showTimeline();
+// 等待 DOM 完全載入後再初始化
+document.addEventListener('DOMContentLoaded', function() {
+    homeButton = document.getElementById('homeButton');
+    initGoogleLogin();
+    showTimeline();
+});
 </script>
 </body>
 </html>
