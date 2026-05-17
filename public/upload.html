@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>📸 上傳照片</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        .upload-card {
+            background: white;
+            border-radius: 24px;
+            padding: 32px;
+            max-width: 500px;
+            width: 100%;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+        }
+        .header {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+        .back-btn {
+            background: none;
+            border: none;
+            font-size: 28px;
+            cursor: pointer;
+            padding: 8px;
+            border-radius: 50%;
+            transition: background 0.2s;
+        }
+        .back-btn:hover { background: #f0f0f0; }
+        h1 { font-size: 24px; color: #333; flex: 1; text-align: center; margin-right: 44px; }
+        
+        .upload-area {
+            border: 2px dashed #ddd;
+            border-radius: 16px;
+            padding: 40px 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin-bottom: 20px;
+        }
+        .upload-area.drag-over { border-color: #667eea; background: #f0f0ff; }
+        .upload-icon { font-size: 48px; margin-bottom: 12px; }
+        .upload-text { color: #666; font-size: 14px; }
+        
+        .preview-container { text-align: center; margin-bottom: 20px; display: none; }
+        .preview-img { max-width: 100%; max-height: 300px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+        
+        .caption-input {
+            width: 100%;
+            padding: 12px 16px;
+            border: 1px solid #ddd;
+            border-radius: 25px;
+            font-size: 16px;
+            margin-bottom: 20px;
+            outline: none;
+        }
+        .caption-input:focus { border-color: #667eea; }
+        
+        .upload-btn {
+            width: 100%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 14px;
+            border-radius: 25px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: opacity 0.3s;
+        }
+        .upload-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .upload-btn:hover:not(:disabled) { opacity: 0.9; }
+        
+        .status {
+            margin-top: 16px;
+            text-align: center;
+            font-size: 14px;
+            color: #666;
+        }
+        
+        .user-info {
+            background: #f5f5f5;
+            border-radius: 12px;
+            padding: 12px;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .user-avatar { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; }
+        .user-name { font-weight: bold; color: #333; flex: 1; }
+        .logout-link { color: #ff4444; text-decoration: none; font-size: 12px; cursor: pointer; }
+        
+        .file-input { display: none; }
+    </style>
+</head>
+<body>
+<div class="upload-card">
+    <div class="header">
+        <button class="back-btn" onclick="goBack()">←</button>
+        <h1>📸 上傳照片</h1>
+    </div>
+    
+    <div id="userInfo" class="user-info" style="display:none;">
+        <img id="userAvatar" class="user-avatar" src="">
+        <span id="userName" class="user-name"></span>
+        <a class="logout-link" onclick="logoutAndGoBack()">登出</a>
+    </div>
+    
+    <div id="uploadArea" class="upload-area" onclick="document.getElementById('fileInput').click()">
+        <div class="upload-icon">📷</div>
+        <div class="upload-text">點擊或拖曳照片至此</div>
+        <div class="upload-text" style="font-size:12px; margin-top:8px;">支援 JPG、PNG、GIF</div>
+    </div>
+    
+    <div id="previewContainer" class="preview-container">
+        <img id="previewImg" class="preview-img">
+    </div>
+    
+    <input type="text" id="caption" class="caption-input" placeholder="照片說明（選填）" maxlength="100">
+    <input type="file" id="fileInput" class="file-input" accept="image/*">
+    <button id="uploadBtn" class="upload-btn" disabled>上傳</button>
+    <div id="status" class="status"></div>
+</div>
+
+<script>
+    let selectedFile = null;
+    let googleUser = null;
+    const GOOGLE_CLIENT_ID = '720728907627-ops2cmqo6cj13dib4b7s15h4r5h1h0t0.apps.googleusercontent.com';
+    
+    // 讀取登入狀態
+    const savedUser = localStorage.getItem('googleUser');
+    if (savedUser) {
+        try {
+            googleUser = JSON.parse(savedUser);
+            document.getElementById('userInfo').style.display = 'flex';
+            document.getElementById('userAvatar').src = googleUser.avatarUrl || 'https://via.placeholder.com/40';
+            document.getElementById('userName').innerText = googleUser.displayName || googleUser.email;
+        } catch(e) {
+            // 無效的登入資料，跳回首頁
+            window.location.href = '/photowall';
+        }
+    } else {
+        // 未登入，跳回首頁
+        alert('請先從照片牆點擊 🎯 登入 Google');
+        window.location.href = '/photowall';
+    }
+    
+    function goBack() {
+        window.location.href = '/photowall';
+    }
+    
+    function logoutAndGoBack() {
+        localStorage.removeItem('googleUser');
+        window.location.href = '/photowall';
+    }
+    
+    // 檔案選擇
+    const fileInput = document.getElementById('fileInput');
+    const uploadArea = document.getElementById('uploadArea');
+    const previewContainer = document.getElementById('previewContainer');
+    const previewImg = document.getElementById('previewImg');
+    const uploadBtn = document.getElementById('uploadBtn');
+    const captionInput = document.getElementById('caption');
+    const statusDiv = document.getElementById('status');
+    
+    fileInput.addEventListener('change', (e) => {
+        if (e.target.files && e.target.files[0]) {
+            selectedFile = e.target.files[0];
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+                previewImg.src = ev.target.result;
+                previewContainer.style.display = 'block';
+                uploadBtn.disabled = false;
+                uploadArea.style.display = 'none';
+            };
+            reader.readAsDataURL(selectedFile);
+        }
+    });
+    
+    // 拖曳上傳
+    uploadArea.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        uploadArea.classList.add('drag-over');
+    });
+    uploadArea.addEventListener('dragleave', () => {
+        uploadArea.classList.remove('drag-over');
+    });
+    uploadArea.addEventListener('drop', (e) => {
+        e.preventDefault();
+        uploadArea.classList.remove('drag-over');
+        if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+            selectedFile = e.dataTransfer.files[0];
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+                previewImg.src = ev.target.result;
+                previewContainer.style.display = 'block';
+                uploadBtn.disabled = false;
+                uploadArea.style.display = 'none';
+            };
+            reader.readAsDataURL(selectedFile);
+            fileInput.files = e.dataTransfer.files;
+        }
+    });
+    
+    // 上傳
+    uploadBtn.addEventListener('click', async () => {
+        if (!selectedFile) return;
+        if (!googleUser) {
+            alert('請先登入');
+            return;
+        }
+        
+        const formData = new FormData();
+        formData.append('photo', selectedFile);
+        formData.append('caption', captionInput.value);
+        
+        uploadBtn.disabled = true;
+        statusDiv.innerHTML = '⏳ 上傳中...';
+        
+        try {
+            const res = await fetch('/api/upload-web', {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${googleUser.token}` },
+                body: formData
+            });
+            const data = await res.json();
+            
+            if (data.success) {
+                statusDiv.innerHTML = '✅ 上傳成功！3秒後返回照片牆...';
+                setTimeout(() => {
+                    window.location.href = '/photowall';
+                }, 3000);
+            } else {
+                statusDiv.innerHTML = '❌ 上傳失敗：' + (data.error || '未知錯誤');
+                uploadBtn.disabled = false;
+            }
+        } catch (error) {
+            statusDiv.innerHTML = '❌ 上傳失敗：' + error.message;
+            uploadBtn.disabled = false;
+        }
+    });
+</script>
+</body>
+</html>
