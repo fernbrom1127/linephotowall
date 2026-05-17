@@ -126,10 +126,18 @@
             <button id="googleNavBtn" class="nav-icon" onclick="handleGoogleAction()" title="Google 登入">🎯</button>
             <button class="nav-icon" onclick="window.location.href='qrcode.html'" title="說明">ℹ️</button>
         </div>
-        <div class="nav-right">
-            <button class="nav-icon" onclick="showGroup()" title="群組">👥</button>
-            <button class="nav-icon" onclick="showTimeline()" title="首頁">🏠</button>
-        </div>
+       <div class="nav-right">
+    <button class="nav-icon" onclick="showGroup()" title="群組">👥</button>
+    <button id="homeButton" class="nav-icon" 
+        onclick="handleHomeClick()" 
+        onmousedown="startHomeLongPress()" 
+        onmouseup="cancelHomeLongPress()" 
+        onmouseleave="cancelHomeLongPress()"
+        ontouchstart="startHomeLongPress()" 
+        ontouchend="cancelHomeLongPress()" 
+        ontouchcancel="cancelHomeLongPress()"
+        title="點擊：首頁 / 長按：隨機">🏠</button>
+</div>
     </div>
 </div>
 
@@ -361,7 +369,39 @@ function renderPhotoGrid(photos) {
     html += '</div>';
     return html;
 }
+// ========== 首頁按鈕（點擊/長按）==========
+let homeLongPressTimer = null;
 
+// 處理首頁按鈕點擊
+function handleHomeClick() {
+    // 取消任何正在進行的長按計時
+    if (homeLongPressTimer) {
+        clearTimeout(homeLongPressTimer);
+        homeLongPressTimer = null;
+    }
+    // 執行首頁功能
+    showTimeline();
+}
+
+// 開始長按計時
+function startHomeLongPress() {
+    homeLongPressTimer = setTimeout(() => {
+        // 長按觸發：執行隨機功能
+        showRandom();
+        // 提供觸覺回饋（可選）
+        const btn = document.getElementById('homeButton');
+        btn.style.transform = 'scale(0.95)';
+        setTimeout(() => { btn.style.transform = ''; }, 200);
+    }, 500); // 長按 0.5 秒觸發
+}
+
+// 取消長按計時
+function cancelHomeLongPress() {
+    if (homeLongPressTimer) {
+        clearTimeout(homeLongPressTimer);
+        homeLongPressTimer = null;
+    }
+}
 // ========== 頁面切換 ==========
 function setNavToDefault() {
     mainNavbar.style.display = 'flex';
