@@ -239,117 +239,94 @@ function escapeHtml(t){ if(!t) return ''; const div=document.createElement('div'
 // ========== Google 登入邏輯（強制彈窗版本）==========
 
 // 初始化：從 localStorage 讀取已登入狀態
+// ========== Google Client ID ==========
+const GOOGLE_CLIENT_ID = 'YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com';
+
+// ========== 登入狀態 ==========
+let googleUser = null;
+
+// 初始化：從 localStorage 讀取已登入狀態
 function initGoogleLogin() {
     const savedUser = localStorage.getItem('googleUser');
     if (savedUser) {
         try {
             googleUser = JSON.parse(savedUser);
-            // 檢查 token 是否過期（可選）
             updateGoogleButtonForLoggedIn();
-            enableUploadButton();
         } catch(e) { console.error(e); }
     }
     
-    // 預先載入 Google 帳戶庫（但不自動彈窗）
-    loadGoogleAccountsLibrary();
-}
-
-// 載入 Google 帳戶庫
-function loadGoogleAccountsLibrary() {
-    if (window.google && window.google.accounts) return;
-    
-    const script = document.createElement('script');
-    script.src = 'https://accounts.google.com/gsi/client';
-    script.async = true;
-    script.defer = true;
-    document.head.appendChild(script);
-}
-
-// 切換登入/登出
-function toggleGoogleLogin() {
-    if (googleUser) {
-        // 已登入：登出
-        logout();
-    } else {
-        // 未登入：強制彈出登入視窗
-        triggerGoogleLoginPopup();
+    // 檢查是否有 pending 的 token（從 callback 頁面跳回來的備用方案）
+    const pendingToken = localStorage.getItem('pendingGoogleToken');
+    if (pendingToken) {
+        localStorage.removeItem('pendingGoogleToken');
+        handleGoogleCredential(pendingToken);
     }
-}
-
-// 強制彈出 Google 登入視窗（使用 redirect_uri 方式）
-function triggerGoogleLoginPopup() {
-    // 確保 Google 帳戶庫已載入
-    if (!window.google || !window.google.accounts) {
-        // 如果還沒載入，等待一下再試
-        const checkInterval = setInterval(() => {
-            if (window.google && window.google.accounts) {
-                clearInterval(checkInterval);
-                doGoogleLogin();
-            }
-        }, 100);
-        return;
-    }
-    doGoogleLogin();
-}
-
-function doGoogleLogin() {
-    // 使用 ID 令牌登入（不需要重新導向）
-    window.google.accounts.id.initialize({
-        client_id: GOOGLE_CLIENT_ID,
-        callback: handleGoogleLogin,
-        auto_select: false,
-        prompt_parent_id: 'googleLoginContainer' // 指定彈窗容器
-    });
     
-    // 強制顯示登入選擇器（不是 One Tap）
-    window.google.accounts.id.prompt((notification) => {
-        if (notification.isNotDisplayed()) {
-            // One Tap 無法顯示時，改用 popup 模式
-            console.log('One Tap 無法顯示，改用彈窗模式', notification.getNotDisplayedReason());
-            fallbackGoogleLogin();
+    // 監聽彈窗傳來的訊息
+    window.addEventListener('message', function(event) {
+        if (event.origin !== window.location.origin) return;
+        if (event.data && event.data.type === 'google_login_success' && event.data.credential) {
+            handleGoogleCredential(event.data.credential);
         }
     });
 }
 
-// 備用方案：使用 OAuth 2.0 彈窗（更可靠）
-function fallbackGoogleLogin() {
-    const redirectUri = window.location.origin + '/auth/google/callback';
-    const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?` +
-        `client_id=${GOOGLE_CLIENT_ID}&` +
-        `redirect_uri=${encodeURIComponent(redirectUri)}&` +
-        `response_type=id_token&` +
-        `scope=openid email profile&` +
-        `nonce=${Math.random().toString(36).substring(2)}`;
+// 點擊 🎯：開啟 Google 登入彈窗
+function handleGoogleAction() {
+    if (googleUser) {
+        // 已登入：跳轉上傳頁面
+        goToUploadPage();
+    } else {
+        // 未登入：開啟彈窗登入
+        openGoogleLoginPopup();
+    }
+}
+
+// 開啟 Google 登入彈窗
+function openGoogleLoginPopup() {
+    // 建立 OAuth URL
+    const redirectUri = window.location.origin + '/auth-callback.html';
+    const authUrl = 'https://accounts.google.com/o/oauth2/v2/auth?' +
+        'client_id=' + encodeURIComponent(GOOGLE_CLIENT_ID) +
+        '&redirect_uri=' + encodeURIComponent(redirectUri) +
+        '&response_type=id_token' +
+        '&scope=openid email profile' +
+        '&nonce=' + Math.random().toString(36).substring(2) +
+        '&prompt=select_account';  // 強制顯示帳號選擇畫面
+    
+    // 計算彈窗位置（置中）
+    const width = 500;
+    const height = 600;
+    const left = (screen.width - width) / 2;
+    const top = (screen.height - height) / 2;
     
     // 開啟彈窗
     const popup = window.open(authUrl, 'GoogleLogin', 
-        'width=500,height=600,left=' + (window.screen.width/2-250) + 
-        ',top=' + (window.screen.height/2-300));
+        `width=${width},height=${height},left=${left},top=${top},toolbar=no,menubar=no`);
     
-    // 監聽回調（需要在後端新增對應 endpoint）
-    window.addEventListener('message', function(event) {
-        if (event.origin !== window.location.origin) return;
-        if (event.data && event.data.type === 'google_token') {
-            popup.close();
-            handleGoogleLogin({ credential: event.data.token });
-        }
-    });
+    if (!popup) {
+        alert('彈窗被瀏覽器阻擋，請允許彈窗後再試一次');
+    } else {
+        // 顯示提示（可選）
+        const btn = document.getElementById('googleNavBtn');
+        btn.style.opacity = '0.7';
+        // 5秒後恢復（如果彈窗還沒關閉）
+        setTimeout(() => { btn.style.opacity = '1'; }, 5000);
+    }
 }
 
-// 處理 Google 登入回調
-async function handleGoogleLogin(response) {
-    if (!response.credential) return;
-    
-    // 顯示載入狀態
+// 處理 Google 憑證
+async function handleGoogleCredential(credential) {
     const btn = document.getElementById('googleNavBtn');
     const originalHtml = btn.innerHTML;
     btn.innerHTML = '⏳';
+    btn.style.opacity = '1';
     
     try {
         const res = await fetch('/api/auth/google', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ credential: response.credential })
+            body: JSON.stringify({ credential: credential })
         });
         const data = await res.json();
         
@@ -359,12 +336,11 @@ async function handleGoogleLogin(response) {
                 displayName: data.displayName,
                 avatarUrl: data.avatarUrl,
                 email: data.email,
-                token: response.credential
+                token: credential
             };
             localStorage.setItem('googleUser', JSON.stringify(googleUser));
             updateGoogleButtonForLoggedIn();
-            enableUploadButton();
-            alert(`✅ 歡迎，${data.displayName || 'Google 用戶'}！現在可以使用網頁上傳功能了`);
+            alert(`✅ 歡迎，${data.displayName || 'Google 用戶'}！\n\n點擊 📸 上傳照片`);
         } else {
             alert('登入失敗：' + (data.error || '未知錯誤'));
             btn.innerHTML = originalHtml;
@@ -376,52 +352,37 @@ async function handleGoogleLogin(response) {
     }
 }
 
-// 更新按鈕為已登入狀態（顯示頭像）
+// 更新按鈕：未登入顯示 🎯，已登入顯示 📸
 function updateGoogleButtonForLoggedIn() {
     const btn = document.getElementById('googleNavBtn');
-    if (btn && googleUser) {
-        btn.innerHTML = `<img src="${googleUser.avatarUrl || 'https://via.placeholder.com/36'}" class="google-avatar" style="width:36px;height:36px;">`;
-        btn.title = `${googleUser.displayName || googleUser.email}\n點擊登出`;
+    if (!btn) return;
+    
+    if (googleUser) {
+        btn.innerHTML = '📸';
+        btn.title = '上傳照片';
+        btn.style.opacity = '1';
+    } else {
+        btn.innerHTML = '🎯';
+        btn.title = 'Google 登入';
+        btn.style.opacity = '1';
     }
 }
 
-// 登出
+// 登出（保留在 upload.html 中處理）
 function logout() {
     if (window.google && window.google.accounts && window.google.accounts.id) {
         window.google.accounts.id.disableAutoSelect();
     }
     googleUser = null;
     localStorage.removeItem('googleUser');
-    const btn = document.getElementById('googleNavBtn');
-    if (btn) {
-        btn.innerHTML = '🎯';
-        btn.title = 'Google 登入';
-    }
-    disableUploadButton();
+    updateGoogleButtonForLoggedIn();
     alert('已登出');
-}
-
-// 啟用/停用上傳按鈕
-function enableUploadButton() {
-    const uploadBtn = document.getElementById('uploadNavBtn');
-    if (uploadBtn) {
-        uploadBtn.style.opacity = '1';
-        uploadBtn.title = '上傳照片';
-    }
-}
-
-function disableUploadButton() {
-    const uploadBtn = document.getElementById('uploadNavBtn');
-    if (uploadBtn) {
-        uploadBtn.style.opacity = '0.5';
-        uploadBtn.title = '請先登入 Google';
-    }
 }
 
 // 跳轉到上傳頁面
 function goToUploadPage() {
     if (!googleUser) {
-        alert('請先點擊 🎯 登入 Google 後才能上傳照片');
+        alert('請先點擊 🎯 登入 Google');
         return;
     }
     window.location.href = 'upload.html';
