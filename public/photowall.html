@@ -369,7 +369,7 @@ function renderPhotoGrid(photos) {
     html += '</div>';
     return html;
 }
-// ========== 首頁按鈕（點擊/長按）==========
+
 // ========== 首頁按鈕（點擊/長按）==========
 let homeLongPressTimer = null;
 let homeButton = null;  // 先宣告，稍後在 DOM 載入後賦值
@@ -397,13 +397,10 @@ function startHomeLongPress() {
             btn.title = '放開進入隨機模式';
             if (navigator.vibrate) navigator.vibrate(50);
         }
-        setTimeout(() => {
-            showRandom();
-            if (btn) {
-                btn.innerHTML = '🏠';
-                btn.title = '點擊：首頁 / 長按：隨機';
-            }
-        }, 100);
+       setTimeout(() => {
+    showRandom();
+}, 100);
+// 把恢復圖示的程式碼移到 showRandom() 執行完之後
         homeLongPressTimer = null;
     }, 300);
 }
