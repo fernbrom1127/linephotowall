@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>📸 回憶照片牆</title>
-    <script src="https://accounts.google.com/gsi/client" async defer></script>
     <style>
         * { margin:0; padding:0; box-sizing:border-box; }
         body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background: #fafafa; min-height: 100vh; }
@@ -32,23 +31,6 @@
         .nav-icon:hover { background: #f0f0f0; transform: scale(1.05); }
         .nav-icon.active { background: linear-gradient(135deg,#667eea 0%,#764ba2 100%); color: white; }
         
-        /* Google 頭像 */
-        .google-avatar {
-            width: 40px;
-            height: 40px;
-            border-radius: 50%;
-            cursor: pointer;
-            border: 2px solid #667eea;
-            object-fit: cover;
-        }
-        .google-avatar:hover { opacity: 0.8; }
-        
-        /* 登入按鈕容器 */
-        .google-btn-container {
-            display: flex;
-            align-items: center;
-        }
-        
         /* 成員頭像列（群組模式） */
         .member-avatars {
             display: flex;
@@ -71,15 +53,10 @@
         .member-avatar:hover { border-color: #667eea; }
         .member-avatar.current-user { border-color: #ff4444; box-shadow: 0 0 0 2px #ff4444; }
         
-        /* 篩選列 */
-         .filter-bar { 
-    display: none !important; 
-    gap: 10px; 
-    padding: 10px 16px; 
-    background: white; 
-    border-bottom: 1px solid #dbdbdb; 
-    flex-wrap: wrap; 
-}
+        /* 篩選列 - 隱藏 */
+        .filter-bar { 
+            display: none !important; 
+        }
         .filter-btn { background: none; border: none; padding: 6px 16px; border-radius: 20px; cursor: pointer; font-size: 14px; }
         .filter-btn.active { background: linear-gradient(135deg,#667eea 0%,#764ba2 100%); color: white; }
         
@@ -144,22 +121,22 @@
 <!-- 主導航列 -->
 <div id="mainNavbar" class="navbar">
     <div class="navbar-content">
-    <div class="nav-left">
-    <button class="nav-icon" onclick="showMyAlbum()" title="LINE 個人相簿">👤</button>
-    <button id="googleNavBtn" class="nav-icon" onclick="handleGoogleAction()" title="Google 登入">🎯</button>
-    <button class="nav-icon" onclick="window.location.href='qrcode.html'" title="說明">ℹ️</button>
-</div>
-<div class="nav-right">
-    <button class="nav-icon" onclick="showGroup()" title="群組">👥</button>
-    <button class="nav-icon" onclick="showTimeline()" title="首頁">🏠</button>
-</div>
+        <div class="nav-left">
+            <button class="nav-icon" onclick="showMyAlbum()" title="LINE 個人相簿">👤</button>
+            <button id="googleNavBtn" class="nav-icon" onclick="handleGoogleAction()" title="Google 登入">🎯</button>
+            <button class="nav-icon" onclick="window.location.href='qrcode.html'" title="說明">ℹ️</button>
+        </div>
+        <div class="nav-right">
+            <button class="nav-icon" onclick="showGroup()" title="群組">👥</button>
+            <button class="nav-icon" onclick="showTimeline()" title="首頁">🏠</button>
+        </div>
     </div>
 </div>
 
 <!-- 群組模式的成員頭像列（動態顯示） -->
 <div id="memberAvatarsContainer" style="display:none;" class="member-avatars"></div>
 
-<!-- 篩選列隱藏       -->
+<!-- 篩選列（已隱藏） -->
 <div id="filterBar" class="filter-bar">
     <button class="filter-btn active" data-filter="all" onclick="setGroupFilter('all')">🏠 全部</button>
     <button class="filter-btn" data-filter="風景" onclick="setGroupFilter('風景')">🌄 風景</button>
@@ -193,7 +170,7 @@
 </div>
 
 <script>
-// ========== Google Client ID（請替換成您的）==========
+// ========== Google Client ID（您的實際 ID）==========
 const GOOGLE_CLIENT_ID = '720728907627-ops2cmqo6cj13dib4b7s15h4r5h1h0t0.apps.googleusercontent.com';
 
 // ========== 全域變數 ==========
@@ -227,21 +204,12 @@ document.querySelector('.close').onclick = () => photoModal.style.display = "non
 photoModal.onclick = (e) => { if(e.target === photoModal) photoModal.style.display = "none"; };
 window.onscroll = () => { document.querySelector('.back-to-top').style.display = window.scrollY > 300 ? 'block' : 'none'; };
 function scrollToTop() { window.scrollTo({ top: 0, behavior: 'smooth' }); }
-function hideConfirm() { confirmOverlay.style.display = 'none'; }
+function hideConfirm() { confirmOverlay.style.display = 'none'; pendingDelete = { imageUrl: null, userId: null, refreshCallback: null }; }
 function formatFullDateTime(isoString) { if(!isoString) return ''; const d=new Date(isoString); return `${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日`; }
 function truncateUserId(id) { if(!id) return '匿名'; if(id===currentUserId) return '我'; if(id.length>12) return id.substring(0,8)+'...'; return id; }
 function escapeHtml(t){ if(!t) return ''; const div=document.createElement('div'); div.textContent=t; return div.innerHTML; }
 
-// ========== Google 登入邏輯 ==========
-// 初始化：從 localStorage 讀取已登入狀態
-// ========== Google 登入邏輯（強制彈窗版本）==========
-
-// 初始化：從 localStorage 讀取已登入狀態
-// ========== Google Client ID ==========
-const GOOGLE_CLIENT_ID = 'YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com';
-
-// ========== 登入狀態 ==========
-let googleUser = null;
+// ========== Google 登入邏輯（彈窗版本）==========
 
 // 初始化：從 localStorage 讀取已登入狀態
 function initGoogleLogin() {
@@ -290,7 +258,7 @@ function openGoogleLoginPopup() {
         '&response_type=id_token' +
         '&scope=openid email profile' +
         '&nonce=' + Math.random().toString(36).substring(2) +
-        '&prompt=select_account';  // 強制顯示帳號選擇畫面
+        '&prompt=select_account';
     
     // 計算彈窗位置（置中）
     const width = 500;
@@ -305,10 +273,8 @@ function openGoogleLoginPopup() {
     if (!popup) {
         alert('彈窗被瀏覽器阻擋，請允許彈窗後再試一次');
     } else {
-        // 顯示提示（可選）
         const btn = document.getElementById('googleNavBtn');
         btn.style.opacity = '0.7';
-        // 5秒後恢復（如果彈窗還沒關閉）
         setTimeout(() => { btn.style.opacity = '1'; }, 5000);
     }
 }
@@ -366,17 +332,6 @@ function updateGoogleButtonForLoggedIn() {
     }
 }
 
-// 登出（保留在 upload.html 中處理）
-function logout() {
-    if (window.google && window.google.accounts && window.google.accounts.id) {
-        window.google.accounts.id.disableAutoSelect();
-    }
-    googleUser = null;
-    localStorage.removeItem('googleUser');
-    updateGoogleButtonForLoggedIn();
-    alert('已登出');
-}
-
 // 跳轉到上傳頁面
 function goToUploadPage() {
     if (!googleUser) {
@@ -411,20 +366,16 @@ function renderPhotoGrid(photos) {
 function setNavToDefault() {
     mainNavbar.style.display = 'flex';
     memberContainer.style.display = 'none';
-    filterBar.style.display = 'none';
 }
 
 function hideMainNavbar() { mainNavbar.style.display = 'none'; }
 function showMemberAvatars() { memberContainer.style.display = 'flex'; }
 function hideMemberAvatars() { memberContainer.style.display = 'none'; }
-function showFilterBar() { filterBar.style.display = 'flex'; }
-function hideFilterBar() { filterBar.style.display = 'none'; }
 
 async function showTimeline() {
     currentMode = 'timeline';
     setNavToDefault();
     hideMemberAvatars();
-    hideFilterBar();
     mainContainer.innerHTML = '<div class="loading">📷 載入中...</div>';
     try {
         const users = await (await fetch('/api/users')).json();
@@ -440,7 +391,6 @@ async function showRandom() {
     currentMode = 'random';
     setNavToDefault();
     hideMemberAvatars();
-    hideFilterBar();
     mainContainer.innerHTML = '<div class="loading">🎲 隨機探索中...</div>';
     try {
         const users = await (await fetch('/api/users')).json();
@@ -456,7 +406,6 @@ async function showGroup() {
     currentMode = 'group';
     setNavToDefault();
     showMemberAvatars();
-    showFilterBar();
     await loadMemberAvatars();
     await loadGroupPhotos();
 }
@@ -480,19 +429,13 @@ async function loadMemberAvatars() {
 async function loadGroupPhotos() {
     mainContainer.innerHTML = '<div class="loading">🎲 載入群組照片中...</div>';
     try {
-        let photos = await (await fetch(groupTagFilter === 'all' ? '/api/photos' : `/api/photos/tag/${groupTagFilter}`)).json();
+        let photos = await (await fetch('/api/photos')).json();
         for (let i = photos.length - 1; i > 0; i--) { const j = Math.floor(Math.random()*(i+1)); [photos[i], photos[j]] = [photos[j], photos[i]]; }
         const users = await (await fetch('/api/users')).json();
         userNameMap.clear();
         users.forEach(u => { if(u.userId && u.displayName) userNameMap.set(u.userId, u.displayName); });
         mainContainer.innerHTML = renderPhotoGrid(photos);
     } catch(e) { mainContainer.innerHTML = '<div class="loading">❌ 載入失敗</div>'; }
-}
-
-function setGroupFilter(tag) {
-    groupTagFilter = tag;
-    document.querySelectorAll('.filter-btn').forEach(btn => { if(btn.dataset.filter === tag) btn.classList.add('active'); else btn.classList.remove('active'); });
-    if (currentMode === 'group') loadGroupPhotos();
 }
 
 async function showMyAlbum() {
@@ -507,7 +450,6 @@ async function showPersonalAlbum(userId) {
     currentPersonalUserId = userId;
     currentMode = 'personal';
     hideMemberAvatars();
-    hideFilterBar();
     hideMainNavbar();
     mainContainer.innerHTML = '<div class="loading">📷 載入個人相簿...</div>';
     try {
