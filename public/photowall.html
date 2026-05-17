@@ -369,11 +369,9 @@ function renderPhotoGrid(photos) {
     html += '</div>';
     return html;
 }
-
-// ========== 首頁按鈕（點擊/長按）==========
 // ========== 首頁按鈕（點擊/長按）==========
 let homeLongPressTimer = null;
-let homeLongPressTriggered = false;  // 新增：標記長按是否已觸發
+let homeLongPressTriggered = false;
 let homeButton = null;
 
 // 處理首頁按鈕點擊
@@ -390,10 +388,14 @@ function handleHomeClick() {
     }
     
     const btn = document.getElementById('homeButton');
-    if (btn && btn.innerHTML !== '🏠') {
+    // 如果目前是 🎲（隨機模式），點擊恢復成 🏠 並執行首頁
+    if (btn && btn.innerHTML === '🎲') {
         btn.innerHTML = '🏠';
         btn.title = '點擊：首頁 / 長按：隨機';
+        showTimeline();
+        return;
     }
+    
     showTimeline();
 }
 
@@ -406,26 +408,20 @@ function startHomeLongPress() {
         
         if (btn) {
             btn.innerHTML = '🎲';
-            btn.title = '進入隨機模式';
+            btn.title = '目前：隨機模式 / 點擊恢復首頁';
             if (navigator.vibrate) navigator.vibrate(50);
         }
         
-        // 立即執行隨機模式（不需要繼續按住）
+        // 執行隨機模式
         showRandom();
-        
-        // 恢復圖示
-        if (btn) {
-            btn.innerHTML = '🏠';
-            btn.title = '點擊：首頁 / 長按：隨機';
-        }
         
         homeLongPressTimer = null;
         
-        // 1秒後重置標記，避免影響下次操作
+        // 重置標記
         setTimeout(() => {
             homeLongPressTriggered = false;
-        }, 1000);
-    }, 300); // 長按 0.3 秒觸發
+        }, 500);
+    }, 300);
 }
 
 // 取消長按計時（如果提前放開且還沒觸發）
@@ -433,11 +429,7 @@ function cancelHomeLongPress() {
     if (homeLongPressTimer) {
         clearTimeout(homeLongPressTimer);
         homeLongPressTimer = null;
-        const btn = document.getElementById('homeButton');
-        if (btn && btn.innerHTML === '🎲') {
-            btn.innerHTML = '🏠';
-            btn.title = '點擊：首頁 / 長按：隨機';
-        }
+        // 注意：不恢復圖示，因為還沒觸發
     }
 }
 
