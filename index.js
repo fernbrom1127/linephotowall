@@ -5,7 +5,12 @@ const path = require('path');
 const { GoogleSpreadsheet } = require('google-spreadsheet');
 const { JWT } = require('google-auth-library');
 const cloudinary = require('cloudinary').v2;
+// ========== Google 登入驗證 ==========
+const { OAuth2Client } = require('google-auth-library');
+const multer = require('multer');
+const upload = multer({ storage: multer.memoryStorage() });
 
+const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 const app = express();
 app.use(express.json());
 app.use(express.static('public'));
@@ -692,7 +697,67 @@ app.get('/api/messages/:userId', async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
+// Google 登入回調（接收前端傳來的 id_token）
+app.post('/api/auth/google', async (req, res) => {
+  try {
+    const { credential } = req.body;
+    const ticket = await googleClient.verifyIdToken({
+      idToken: credential,
+      audience: process.env.GOOGLE_CLIENT_ID,
+    });
+    const payload = ticket.getPayload();
+    const googleUserId = payload.sub;        // Google 唯一 ID
+    const email = payload.email;
+    const name = payload.name;
+    const avatar = payload.picture;
 
+    // 這裡可以將 Google 用戶資訊儲存到您的 Google Sheets 或記憶體
+    // 並回傳一個 session token 給前端
+    res.json({ 
+      success: true, 
+      userId: googleUserId,
+      displayName: name,
+      avatarUrl: avatar,
+      email: email
+    });
+  } catch (error) {
+    console.error('Google 登入驗證失敗:', error);
+    res.status(401).json({ success: false, error: '驗證失敗' });
+  }
+});
+
+// 網頁上傳照片接口（需要先 Google 登入）
+app.post('/api/upload-web', upload.single('photo'), async (req, res) => {
+  try {
+    // 1. 驗證 Google Token（從 header 取得）
+    const authHeader = req.headers.authorization;
+    if (!authHeader) return res.status(401).json({ error: '未提供憑證' });
+    
+    const token = authHeader.split(' ')[1];
+    const ticket = await googleClient.verifyIdToken({
+      idToken: token,
+      audience: process.env.GOOGLE_CLIENT_ID,
+    });
+    const payload = ticket.getPayload();
+    const googleUserId = payload.sub;
+
+    // 2. 獲取上傳圖片
+    const imageBuffer = req.file.buffer;
+    const caption = req.body.caption || '';
+
+    // 3. 上傳到 Cloudinary（複用現有函數）
+    const imageUrl = await uploadToCloudinary(imageBuffer);
+    if (!imageUrl) throw new Error('Cloudinary 上傳失敗');
+
+    // 4. 儲存到 Google Sheets（使用 Google ID 作為使用者識別）
+    await savePhotoToSheet(`google_${googleUserId}`, imageUrl, caption);
+
+    res.json({ success: true, imageUrl });
+  } catch (error) {
+    console.error('上傳失敗:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
 app.post('/api/messages', async (req, res) => {
   if (!googleSheetReady || !messagesSheet) return res.status(503).json({ error: '服務未就緒' });
   try {
