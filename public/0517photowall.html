@@ -1,0 +1,777 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>📸 回憶照片牆</title>
+    <style>
+        * { margin:0; padding:0; box-sizing:border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background: #fafafa; min-height: 100vh; overflow-x: hidden; }
+        
+        .navbar { background: white; border-bottom:1px solid #dbdbdb; position:sticky; top:0; z-index:100; padding:12px 20px; }
+        .navbar-content { width:100%; margin:0; display:flex; justify-content:space-between; align-items:center; }
+        .logo { font-size:24px; font-weight:normal; color:#333; text-decoration:none; cursor:pointer; flex-shrink:0; }
+        .qrcode-banner { font-size:24px; font-weight:normal; color:#333; text-decoration:none; cursor:pointer; flex-shrink:0;text-decoration: none; }
+        .nav-right { display:flex; gap:8px; align-items:center; flex:1; justify-content:flex-end; overflow:visible; min-width:0; }
+        .nav-btn { background:none; border:none; font-size:20px; cursor:pointer; padding:6px 12px; border-radius:20px; transition:all 0.3s; flex-shrink:0; }
+        .nav-btn.active { background:linear-gradient(135deg,#667eea 0%,#764ba2 100%); color:white; }
+        .nav-btn:hover { background:#f0f0f0; }
+        
+        .navbar.hide { display: none; }
+        
+        /* 修正：頭像容器右側留白，防止被切一刀 */
+        .member-avatars {
+            display: flex;
+            gap: 8px;
+            overflow-x: auto;
+            scrollbar-width: none;
+            -ms-overflow-style: none;
+            flex: 1;
+            min-width: 0;
+            max-width: 100%;
+            padding: 4px 12px 4px 4px;      /* 右邊留白 12px */
+            scroll-padding-right: 12px;
+        }
+        .member-avatars::-webkit-scrollbar {
+            display: none;
+        }
+        .member-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            object-fit: cover;
+            cursor: pointer;
+            border: 2px solid #ddd;
+            flex-shrink: 0;
+        }
+        .member-avatar:hover {
+            border-color: #667eea;
+            transform: scale(1.05);
+            transition: 0.2s;
+        }
+        .member-avatar.current-user {
+            border-color: #ff4444;
+            box-shadow: 0 0 0 2px #ff4444;
+        }
+        .member-avatar:last-child {
+            margin-right: 8px;   /* 最後一個頭像額外右邊距 */
+        }
+        
+        .filter-bar { display:none; gap:10px; padding:10px; background:white; border-bottom:1px solid #dbdbdb; flex-wrap:wrap; align-items:center; }
+        .filter-btn { background:none; border:none; padding:6px 16px; border-radius:20px; cursor:pointer; font-size:14px; }
+        .filter-btn.active { background:linear-gradient(135deg,#667eea 0%,#764ba2 100%); color:white; }
+        .filter-btn:hover { background:#f0f0f0; }
+        .date-select { padding:6px 12px; border-radius:20px; border:1px solid #ddd; }
+        
+        .container { width:100%; margin:0; padding:0; }
+        .photo-grid { column-count:4; column-gap:5px; padding:5px; background:#fff; }
+        .photo-card { display:inline-block; width:100%; margin-bottom:5px; position:relative; cursor:pointer; background:#f0f0f0; border-radius:8px; overflow:hidden; break-inside:avoid; }
+        .photo-card img { width:100%; height:auto; display:block; }
+        .photo-overlay { position:absolute; bottom:0; left:0; right:0; background:linear-gradient(transparent,rgba(0,0,0,0.8)); color:white; padding:20px 10px 10px; opacity:0; transition:opacity 0.3s; pointer-events:none; font-size:13px; }
+        .photo-card:hover .photo-overlay { opacity:1; }
+        
+        @media (max-width:768px){
+            .photo-overlay { opacity:1; position:relative; background:rgba(0,0,0,0.7); padding:8px; font-size:11px; }
+            .photo-card { margin-bottom:5px; border-radius:8px; overflow:hidden; box-shadow:0 1px 3px rgba(0,0,0,0.1); }
+            .member-avatar { width:36px; height:36px; }
+            .photo-grid { column-count:2; }
+           
+    /* 如果也想隱藏首頁/群組頁的 hover 資訊 */
+    .photo-overlay {
+        display: none;
+    }
+}
+            .nav-right { gap:4px; }
+            .nav-btn { padding:4px 8px; font-size:18px; }
+            .member-avatars { padding:4px 8px 4px 4px; }
+        }
+        @media (max-width:768px){ .photo-grid { column-count:2; } }
+        
+        .delete-btn, .set-avatar-btn, .tag-btn, .photo-msg-btn { position:absolute; top:10px; background:rgba(0,0,0,0.6); color:white; border:none; border-radius:50%; width:32px; height:32px; font-size:16px; cursor:pointer; z-index:5; display:flex; align-items:center; justify-content:center; transition:all 0.2s; }
+        .delete-btn { right:10px; background:rgba(255,68,68,0.9); }
+        .delete-btn:hover { background:#ff4444; transform:scale(1.05); }
+        .set-avatar-btn { right:50px; background:rgba(102,126,234,0.9); }
+        .set-avatar-btn:hover { background:#667eea; transform:scale(1.05); }
+        .tag-btn { right:90px; background:rgba(0,0,0,0.6); }
+        .tag-btn:hover { background:#555; transform:scale(1.05); }
+        .photo-msg-btn { left:10px; right:auto; background:rgba(0,0,0,0.6); }
+        .photo-msg-btn:hover { background:#667eea; transform:scale(1.05); }
+        
+        .modal { display:none; position:fixed; left:0; top:0; width:100%; height:100%; background-color:rgba(0,0,0,0.95); z-index:1000; overflow:hidden; }
+        .modal-content { position:relative; margin:auto; padding:20px; width:90%; max-width:800px; top:50%; transform:translateY(-50%); }
+        .modal-image { width:100%; height:auto; border-radius:10px; }
+        .modal-info { color:white; padding:15px; text-align:center; }
+        .close { position:absolute; top:20px; right:35px; color:white; font-size:40px; font-weight:bold; cursor:pointer; }
+        
+        .personal-nav { background:white; border-bottom:1px solid #dbdbdb; padding:12px 20px; position:sticky; top:0; z-index:100; }
+        .personal-nav-row1 { display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; }
+        .personal-nav-left { display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+        .back-arrow { background:none; border:none; font-size:24px; cursor:pointer; padding:4px 8px; color:#333; }
+        .personal-avatar { width:40px; height:40px; border-radius:50%; object-fit:cover; border:2px solid #667eea; }
+        .personal-name { font-weight:bold; font-size:16px; }
+        .edit-name-btn { background:none; border:none; color:#667eea; cursor:pointer; font-size:14px; margin-left:6px; }
+        .personal-action-btn { background:#667eea; color:white; border:none; padding:6px 16px; border-radius:20px; cursor:pointer; font-size:14px; }
+        .personal-bio { font-size:13px; color:#666; margin-bottom:8px; padding-left:52px;display: none; }
+        .personal-tags { display:flex; gap:8px; padding-left:52px; }
+        .personal-tag-btn { background:none; border:none; padding:4px 12px; border-radius:20px; cursor:pointer; font-size:13px; }
+        .personal-tag-btn.active { background:linear-gradient(135deg,#667eea 0%,#764ba2 100%); color:white; }
+        
+        .user-photo-grid { column-count:2; column-gap:4px; padding:0; background:#fafafa; }
+        .user-photo-card { break-inside:avoid; margin-bottom:4px; position:relative; border-radius:0; overflow:hidden; background:#f0f0f0; }
+        .user-photo-card img { width:100%; height:auto; display:block; }
+        .user-photo-info { padding:6px 8px; background:rgba(0,0,0,0.6); color:white; font-size:11px; position:absolute; bottom:0; left:0; right:0; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:4px;display: none; }
+        .user-photo-info .date { font-size:10px; opacity:0.9;display: none; }
+        .user-photo-info .message { flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;display: none; }
+        .user-photo-info .like-btn { background:none; border:none; color:#ff4444; cursor:pointer; font-size:12px; padding:0 4px;display: none; }
+        @media (min-width:769px){ .user-photo-grid { column-count:3; } }
+        
+        .messages-container { padding:12px; background:#fafafa; min-height:300px; }
+        .message-item { background:white; border-radius:12px; padding:12px; margin-bottom:12px; box-shadow:0 1px 2px rgba(0,0,0,0.05); display:flex; gap:12px; }
+        .message-photo { width:60px; height:60px; border-radius:8px; object-fit:cover; background:#f0f0f0; flex-shrink:0; cursor:pointer; }
+        .message-content { flex:1; }
+        .message-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; flex-wrap:wrap; }
+        .message-sender { font-weight:bold; font-size:13px; }
+        .message-time { font-size:11px; color:#999; }
+        .message-text { font-size:14px; color:#333; margin-bottom:8px; word-break:break-word; }
+        .message-photo-ref { display:flex; align-items:center; gap:6px; margin-bottom:8px; background:#f5f5f5; padding:6px 10px; border-radius:8px; cursor:pointer; }
+        .message-photo-ref img { width:30px; height:30px; border-radius:4px; object-fit:cover; }
+        .message-actions { display:flex; gap:16px; }
+        .message-action-btn { background:none; border:none; cursor:pointer; font-size:12px; padding:0; }
+        .like-btn { color:#ff4444; }
+        .reply-btn { color:#667eea; }
+        .delete-btn-msg { color:#999; }
+        .message-input-area { background:white; border-radius:12px; padding:12px; margin-top:12px; display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+        .message-input { flex:1; padding:10px 12px; border:1px solid #ddd; border-radius:25px; outline:none; font-size:14px; }
+        .send-btn { background:#667eea; color:white; border:none; padding:8px 20px; border-radius:25px; cursor:pointer; }
+        
+        .loading { text-align:center; padding:50px; color:#999; }
+        .back-to-top { position:fixed; bottom:30px; right:30px; background:#667eea; color:white; border:none; border-radius:50%; width:50px; height:50px; font-size:24px; cursor:pointer; box-shadow:0 2px 10px rgba(0,0,0,0.2); display:none; z-index:100; }
+        .confirm-overlay { position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:2000; display:none; align-items:center; justify-content:center; }
+        .confirm-dialog { background:white; border-radius:12px; padding:20px; width:300px; text-align:center; }
+        .confirm-dialog p { margin-bottom:20px; }
+        .confirm-buttons { display:flex; gap:10px; justify-content:center; }
+        .confirm-btn { padding:8px 20px; border:none; border-radius:8px; cursor:pointer; }
+        .confirm-btn.confirm { background:#ff4444; color:white; }
+        .confirm-btn.cancel { background:#ddd; color:#333; }
+    </style><script src="https://accounts.google.com/gsi/client" async defer></script>
+    
+</head>
+<body>
+<div id="mainNavbar" class="navbar">
+    <div class="navbar-content"><div id="g_id_onload"
+     data-client_id="720728907627-ops2cmqo6cj13dib4b7s15h4r5h1h0t0.apps.googleusercontent.com"
+     data-login_uri="https://photo.bernbrom.com/api/auth/google"
+     data-auto_prompt="false">
+</div>
+<div class="g_id_signin"
+     data-type="standard"
+     data-size="large"
+     data-theme="outline"
+     data-text="sign_in_with"
+     data-shape="rectangular"
+     data-logo_alignment="left">
+</div>
+        <div class="logo" onclick="showTimeline()">📸</div>
+        <div class="qrcode-banner"><a href="qrcode.html"style="text-decoration: none;" >ℹ️</a></div>
+        <div id="navRight" class="nav-right">
+            <button class="nav-btn" onclick="showRandom()">🎲</button>
+            <button class="nav-btn" onclick="showGroup()">👥</button>
+            <button class="nav-btn" onclick="showMyAlbum()">👤</button>
+        </div>
+    </div>
+</div>
+<div id="filterBar" class="filter-bar">
+    <button class="filter-btn active" data-filter="all" onclick="setGroupFilter('all')">🏠</button>
+    <button class="filter-btn" data-filter="風景" onclick="setGroupFilter('風景')">🌄</button>
+    <button class="filter-btn" data-filter="美食" onclick="setGroupFilter('美食')">🍜</button>
+    <button class="filter-btn" data-filter="人物" onclick="setGroupFilter('人物')">👤</button>
+    <div style="display:flex; gap:8px; margin-left:auto;">
+        <select id="yearSelect" class="date-select" onchange="onYearChange()"><option value="all">📅年</option></select>
+        <select id="monthSelect" class="date-select" onchange="onMonthChange()"><option value="all">📆月</option></select>
+    </div>
+</div>
+<div id="mainContainer" class="container"><div class="loading">📷 載入中...</div></div>
+<button class="back-to-top" onclick="scrollToTop()">↑</button>
+<div id="photoModal" class="modal"><span class="close">&times;</span><div class="modal-content"><img class="modal-image" id="modalImage"><div class="modal-info" id="modalInfo"></div></div></div>
+<div id="confirmOverlay" class="confirm-overlay">
+    <div class="confirm-dialog">
+        <p>確定要刪除這張照片嗎？</p>
+        <div class="confirm-buttons">
+            <button class="confirm-btn cancel" onclick="hideConfirm()">取消</button>
+            <button class="confirm-btn confirm" id="confirmDeleteBtn">刪除</button>
+        </div>
+    </div>
+</div>
+
+<script>
+// ========== 功能開關 ==========
+const FEATURES = {
+    ENABLE_LIKE_BUTTON: false,
+    ENABLE_PHOTO_COMMENT_BUTTON: false,
+    ENABLE_MESSAGE_BOARD: false,
+    ENABLE_FILTER_BAR: false,
+    ENABLE_PERSONAL_TAGS: false
+};
+
+// ========== 全域變數與函數（保持原有邏輯，此處省略以節省篇幅，實際使用時請保留完整的 JS 部分）==========
+// 注意：此處因篇幅限制，JS 部分與之前相同，請使用完整檔案時保留原有所有 JavaScript 程式碼
+// 以下為省略標記，實際使用請從之前的完整版本複製 JS 內容
+let currentUserId = null;
+let currentMode = 'timeline';
+let groupTagFilter = 'all';
+let groupYear = 'all';
+let groupMonth = 'all';
+let availableYears = [];
+let availableMonths = new Map();
+let allMembers = [];
+let userNameMap = new Map();
+let pendingDelete = { imageUrl: null, userId: null, refreshCallback: null };
+let pendingDeleteMsg = { messageId: null, refreshCallback: null };
+let currentPersonalUserId = null;
+let currentPersonalMode = 'photos';
+let currentMessages = [];
+let currentPhotosData = [];
+
+const urlUserId = new URLSearchParams(window.location.search).get('userId');
+if (urlUserId) { localStorage.setItem('userId', urlUserId); currentUserId = urlUserId; }
+else { currentUserId = localStorage.getItem('userId'); }
+
+const mainContainer = document.getElementById('mainContainer');
+const filterBar = document.getElementById('filterBar');
+const mainNavbar = document.getElementById('mainNavbar');
+const photoModal = document.getElementById('photoModal'), modalImg = document.getElementById('modalImage'), modalInfo = document.getElementById('modalInfo');
+const confirmOverlay = document.getElementById('confirmOverlay');
+document.querySelector('.close').onclick = () => photoModal.style.display = "none";
+photoModal.onclick = (e) => { if(e.target === photoModal) photoModal.style.display = "none"; };
+window.onscroll = () => { document.querySelector('.back-to-top').style.display = window.scrollY > 300 ? 'block' : 'none'; };
+function scrollToTop() { window.scrollTo({ top: 0, behavior: 'smooth' }); }
+function hideConfirm() { confirmOverlay.style.display = 'none'; pendingDeleteMsg = { messageId: null, refreshCallback: null }; }
+function executeDeleteMsg() {
+    if(!pendingDeleteMsg.messageId) return;
+    const { messageId, refreshCallback } = pendingDeleteMsg;
+    hideConfirm();
+    deleteMessageById(messageId, refreshCallback);
+}
+
+function formatFullDateTime(isoString) { if(!isoString) return ''; const d=new Date(isoString); return `${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日`; }
+function formatTimeAgo(isoString) {
+    if(!isoString) return '';
+    const d=new Date(isoString), now=new Date();
+    const diff = Math.floor((now-d)/1000);
+    if(diff<60) return '剛剛';
+    if(diff<3600) return `${Math.floor(diff/60)}分鐘前`;
+    if(diff<86400) return `${Math.floor(diff/3600)}小時前`;
+    return `${Math.floor(diff/86400)}天前`;
+}
+function truncateUserId(id) { if(!id) return '匿名'; if(id===currentUserId) return '我'; if(id.length>12) return id.substring(0,8)+'...'; return id; }
+function escapeHtml(t){ if(!t) return ''; const div=document.createElement('div'); div.textContent=t; return div.innerHTML; }
+function showConfirm(imgUrl, uid, cb) {
+    pendingDelete = { imageUrl: imgUrl, userId: uid, refreshCallback: cb };
+    const overlay = document.getElementById('confirmOverlay');
+    overlay.querySelector('p').innerText = '確定要刪除這張照片嗎？';
+    const confirmBtn = document.getElementById('confirmDeleteBtn');
+    confirmBtn.onclick = () => executeDelete();
+    overlay.style.display = 'flex';
+}
+
+function showConfirmMsg(msgId, cb) {
+    pendingDeleteMsg = { messageId: msgId, refreshCallback: cb };
+    const overlay = document.getElementById('confirmOverlay');
+    overlay.querySelector('p').innerText = '確定要刪除這則留言嗎？';
+    const confirmBtn = document.getElementById('confirmDeleteBtn');
+    confirmBtn.onclick = () => executeDeleteMsg();
+    overlay.style.display = 'flex';
+}
+
+function hideConfirm() {
+    const overlay = document.getElementById('confirmOverlay');
+    overlay.style.display = 'none';
+    pendingDelete = { imageUrl: null, userId: null, refreshCallback: null };
+    pendingDeleteMsg = { messageId: null, refreshCallback: null };
+}
+async function executeDelete() {
+    if(!pendingDelete.imageUrl) return;
+    const { imageUrl, userId, refreshCallback } = pendingDelete;
+    hideConfirm();
+    try {
+        const res = await fetch(`/api/photo?imageUrl=${encodeURIComponent(imageUrl)}&userId=${encodeURIComponent(userId)}`, { method:'DELETE' });
+        const data = await res.json();
+        if(data.success) { alert('✅ 照片已刪除'); if(refreshCallback) refreshCallback(); else location.reload(); }
+        else alert('刪除失敗');
+    } catch(e) { alert('刪除失敗'); }
+}
+async function setAsAvatar(imgUrl) {
+    if(!currentUserId) return alert('請先登入');
+    await fetch('/api/user/avatar', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ userId:currentUserId, avatarUrl:imgUrl }) });
+    alert('✅ 已設為頭像！');
+}
+async function editDisplayName(userId, currentName) {
+    const newName = prompt('請輸入您希望顯示的名稱：', currentName);
+    if(newName && newName.trim()) {
+        try {
+            const res = await fetch('/api/user/displayname', { 
+                method: 'POST', 
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ userId, displayName: newName.trim() }) 
+            });
+            const data = await res.json();
+            if(data.success) { 
+                alert('✅ 名稱已更新'); 
+                showPersonalAlbum(userId);
+            } else {
+                alert('更新失敗');
+            }
+        } catch(e) { 
+            alert('錯誤');
+        }
+    }
+}
+function renderPhotoGrid(photos) {
+    if(!photos || photos.length===0) return '<div class="loading">📸 暫無照片</div>';
+    let html = '<div class="photo-grid">';
+    photos.forEach(photo => {
+        const displayName = userNameMap.get(photo.userId) || truncateUserId(photo.userId);
+        const fullDate = formatFullDateTime(photo.time);
+        const likes = photo.likes || 0;
+        const likeId = 'like_' + photo.imageUrl.replace(/[^a-zA-Z0-9]/g, '_');
+        html += `<div class="photo-card" data-url="${photo.imageUrl}">
+            <div onclick="showPhotoDetail('${photo.imageUrl}','${photo.userId}','${photo.time}','${(photo.message||'').replace(/'/g,"\\'")}')">
+                <img src="${photo.imageUrl}" loading="lazy" onerror="this.src='https://via.placeholder.com/300'">
+                <div class="photo-overlay">
+                    <div>👤 ${displayName}</div><div>📅 ${fullDate}</div>
+                    ${photo.message ? `<div>💬 ${photo.message.substring(0,30)}${photo.message.length>30?'…':''}</div>` : ''}
+                    <div style="margin-top:5px;">
+                        ${FEATURES.ENABLE_LIKE_BUTTON ? 
+                            `<button class="like-photo-btn" onclick="event.stopPropagation(); likePhoto('${photo.imageUrl}', '${likeId}')" style="background:none; border:none; color:#ff4444; cursor:pointer;">❤️ <span id="${likeId}">${likes}</span></button>` :
+                            `<span style="color:#ff4444;">❤️ ${likes}</span>`
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>`;
+    });
+    html += '</div>';
+    return html;
+}
+async function likePhoto(imgUrl, spanId) {
+    if(!currentUserId) return alert('請登入');
+    const res = await fetch('/api/photo/like', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ imageUrl:imgUrl }) });
+    const data = await res.json();
+    if(data.success && spanId) document.getElementById(spanId).textContent = data.likes;
+}
+async function loadDateOptions() {
+    const photos = await (await fetch('/api/photos')).json();
+    const years = new Set(), monthsMap = new Map();
+    photos.forEach(p => {
+        let ym = p.yearMonth || (p.time ? p.time.substring(0,7) : '');
+        if(ym) {
+            const y = ym.substring(0,4), m = ym.substring(5,7);
+            years.add(y);
+            if(!monthsMap.has(y)) monthsMap.set(y, new Set());
+            monthsMap.get(y).add(m);
+        }
+    });
+    availableYears = Array.from(years).sort().reverse();
+    availableMonths = monthsMap;
+    const yearSel = document.getElementById('yearSelect');
+    yearSel.innerHTML = '<option value="all">📅年</option>';
+    availableYears.forEach(y => { const opt = document.createElement('option'); opt.value=y; opt.textContent=`${y}年`; yearSel.appendChild(opt); });
+    const monthSel = document.getElementById('monthSelect');
+    monthSel.innerHTML = '<option value="all">📆月</option>';
+}
+function onYearChange() {
+    groupYear = document.getElementById('yearSelect').value;
+    const monthSel = document.getElementById('monthSelect');
+    if (groupYear === 'all') { monthSel.innerHTML = '<option value="all">📆月</option>'; groupMonth = 'all'; monthSel.value = 'all'; }
+    else {
+        const months = availableMonths.get(groupYear) || new Set();
+        monthSel.innerHTML = '<option value="all">📆月</option>';
+        Array.from(months).sort().reverse().forEach(m => { const opt = document.createElement('option'); opt.value=m; opt.textContent=`${m}月`; monthSel.appendChild(opt); });
+        groupMonth = 'all'; monthSel.value = 'all';
+    }
+    if (currentMode === 'group') loadGroupPhotos();
+}
+function onMonthChange() {
+    groupMonth = document.getElementById('monthSelect').value;
+    if (currentMode === 'group') loadGroupPhotos();
+}
+function setGroupFilter(tag) {
+    groupTagFilter = tag;
+    document.querySelectorAll('.filter-btn').forEach(btn => { if(btn.dataset.filter === tag) btn.classList.add('active'); else btn.classList.remove('active'); });
+    if (currentMode === 'group') loadGroupPhotos();
+}
+
+function setNavToDefault() {
+    mainNavbar.classList.remove('hide');
+    document.getElementById('navRight').innerHTML = `
+        <button class="nav-btn" onclick="showRandom()">🎲</button>
+        <button class="nav-btn" onclick="showGroup()">👥</button>
+        <button class="nav-btn" onclick="showMyAlbum()">👤</button>
+    `;
+}
+function setNavToAvatars(html) {
+    mainNavbar.classList.remove('hide');
+    document.getElementById('navRight').innerHTML = `<div class="member-avatars">${html}</div>`;
+}
+function hideMainNavbar() { mainNavbar.classList.add('hide'); }
+
+async function showTimeline() {
+    currentMode = 'timeline';
+    filterBar.style.display = 'none';
+    setNavToDefault();
+    mainContainer.innerHTML = '<div class="loading">📷 載入中...</div>';
+    try {
+        const users = await (await fetch('/api/users')).json();
+        userNameMap.clear();
+        users.forEach(u => { if(u.userId && u.displayName) userNameMap.set(u.userId, u.displayName); });
+        let photos = await (await fetch('/api/photos')).json();
+        photos.sort((a,b) => new Date(b.time) - new Date(a.time));
+        mainContainer.innerHTML = renderPhotoGrid(photos);
+    } catch(e) { mainContainer.innerHTML = '<div class="loading">❌ 載入失敗</div>'; }
+}
+async function showRandom() {
+    currentMode = 'random';
+    filterBar.style.display = 'none';
+    setNavToDefault();
+    mainContainer.innerHTML = '<div class="loading">🎲 隨機探索中...</div>';
+    try {
+        const users = await (await fetch('/api/users')).json();
+        userNameMap.clear();
+        users.forEach(u => { if(u.userId && u.displayName) userNameMap.set(u.userId, u.displayName); });
+        let photos = await (await fetch('/api/photos')).json();
+        for (let i = photos.length - 1; i > 0; i--) { const j = Math.floor(Math.random()*(i+1)); [photos[i], photos[j]] = [photos[j], photos[i]]; }
+        mainContainer.innerHTML = renderPhotoGrid(photos);
+    } catch(e) { mainContainer.innerHTML = '<div class="loading">❌ 載入失敗</div>'; }
+}
+async function showGroup() {
+    currentMode = 'group';
+    if (FEATURES.ENABLE_FILTER_BAR) filterBar.style.display = 'flex';
+    else filterBar.style.display = 'none';
+    await loadMemberAvatars();
+    await loadGroupPhotos();
+}
+async function loadMemberAvatars() {
+    try {
+        const users = await (await fetch('/api/users')).json();
+        allMembers = users;
+        const sorted = [...users].sort((a,b) => new Date(b.latestTime) - new Date(a.latestTime));
+        let html = '';
+        sorted.forEach(user => {
+            const avatar = user.latestPhoto || 'https://via.placeholder.com/48';
+            const name = user.displayName || truncateUserId(user.userId);
+            const isCurrent = user.userId === currentUserId;
+            html += `<img class="member-avatar ${isCurrent ? 'current-user' : ''}" src="${avatar}" title="${name}" onclick="showPersonalAlbum('${user.userId}')" onerror="this.src='https://via.placeholder.com/48'">`;
+        });
+        setNavToAvatars(html);
+    } catch(e) { console.error(e); }
+}
+async function loadGroupPhotos() {
+    mainContainer.innerHTML = '<div class="loading">🎲 載入群組照片中...</div>';
+    try {
+        let photos = await (await fetch(groupTagFilter === 'all' ? '/api/photos' : `/api/photos/tag/${groupTagFilter}`)).json();
+        if (groupYear !== 'all') {
+            photos = photos.filter(p => {
+                let ym = p.yearMonth || (p.time ? p.time.substring(0,7) : '');
+                if(!ym) return false;
+                if(groupYear !== ym.substring(0,4)) return false;
+                if(groupMonth !== 'all' && groupMonth !== ym.substring(5,7)) return false;
+                return true;
+            });
+        }
+        for (let i = photos.length - 1; i > 0; i--) { const j = Math.floor(Math.random()*(i+1)); [photos[i], photos[j]] = [photos[j], photos[i]]; }
+        const users = await (await fetch('/api/users')).json();
+        userNameMap.clear();
+        users.forEach(u => { if(u.userId && u.displayName) userNameMap.set(u.userId, u.displayName); });
+        mainContainer.innerHTML = renderPhotoGrid(photos);
+    } catch(e) { mainContainer.innerHTML = '<div class="loading">❌ 載入失敗</div>'; }
+}
+
+async function loadMessages(userId) {
+    try {
+        const res = await fetch(`/api/messages/${userId}`);
+        currentMessages = await res.json();
+    } catch(e) { currentMessages = []; }
+}
+async function postMessage(targetUserId, content, photoUrl = null, photoTime = null) {
+    const res = await fetch('/api/messages', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ targetUserId, senderId: currentUserId, content, photoUrl, photoTime })
+    });
+    return await res.json();
+}
+async function likeMessageById(messageId) {
+    const res = await fetch('/api/messages/like', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ messageId }) });
+    return await res.json();
+}
+async function deleteMessageById(messageId, refreshCallback) {
+    const res = await fetch(`/api/messages/${messageId}?userId=${currentUserId}`, { method:'DELETE' });
+    const data = await res.json();
+    if(data.success && refreshCallback) refreshCallback();
+}
+async function replyToMessage(parentMessageId, targetUserId, content) {
+    const res = await fetch('/api/messages/reply', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ parentMessageId, targetUserId, senderId: currentUserId, content })
+    });
+    return await res.json();
+}
+
+async function showMyAlbum() {
+    if(!currentUserId) { alert('請先從 LINE 個人連結登入'); return; }
+    await showPersonalAlbum(currentUserId);
+}
+async function showPersonalAlbum(userId) {
+    currentPersonalUserId = userId;
+    currentPersonalMode = 'photos';
+    currentMode = 'personal';
+    filterBar.style.display = 'none';
+    hideMainNavbar();
+    mainContainer.innerHTML = '<div class="loading">📷 載入個人相簿...</div>';
+    try {
+        let profile = { displayName: truncateUserId(userId), avatarUrl: null, bio: '', ig: '', fb: '' };
+        try {
+            const p = await (await fetch(`/api/user/profile/${userId}`)).json();
+            if(p) profile = { ...profile, ...p };
+        } catch(e) {}
+        if (!profile.avatarUrl) {
+            const photos = await (await fetch(`/api/photos/user/${encodeURIComponent(userId)}`)).json();
+            if(photos && photos.length>0) profile.avatarUrl = photos[0].imageUrl;
+        }
+        currentPhotosData = await (await fetch(`/api/photos/user/${encodeURIComponent(userId)}`)).json();
+        await loadMessages(userId);
+        renderPersonalPage(profile, userId);
+    } catch(e) { mainContainer.innerHTML = '<div class="loading">❌ 載入失敗</div>'; }
+}
+function renderPersonalPage(profile, userId) {
+    const titleName = escapeHtml(profile.displayName || truncateUserId(userId));
+    const isOwner = currentUserId === userId;
+    
+    function renderPhotosContent(tag) {
+        const photos = tag === 'all' ? currentPhotosData : currentPhotosData.filter(p => p.tag === tag);
+        if(photos.length===0) return '<div class="loading" style="padding:20px;">📸 暫無照片</div>';
+        let html = '<div class="user-photo-grid">';
+        photos.forEach(photo => {
+            const fullDate = formatFullDateTime(photo.time);
+            const likeId = 'p_like_' + photo.imageUrl.replace(/[^a-zA-Z0-9]/g, '_');
+            html += `<div class="user-photo-card" data-url="${photo.imageUrl}" style="position:relative;">
+                ${isOwner ? `<button class="delete-btn" onclick="event.stopPropagation(); showConfirm('${photo.imageUrl}', '${userId}', () => showPersonalAlbum('${userId}'))">🗑️</button>` : ''}
+                ${isOwner ? `<button class="set-avatar-btn" onclick="event.stopPropagation(); setAsAvatar('${photo.imageUrl}')">👤</button>` : ''}
+                ${isOwner ? `<button class="tag-btn" onclick="event.stopPropagation(); editPhotoTag('${photo.imageUrl}', '${photo.tag || ''}', '${userId}')">🏷️</button>` : ''}
+                ${FEATURES.ENABLE_PHOTO_COMMENT_BUTTON ? `<button class="photo-msg-btn" onclick="event.stopPropagation(); commentOnPhoto('${photo.imageUrl}', '${photo.time}')">💬</button>` : ''}
+                <div onclick="showPhotoDetail('${photo.imageUrl}', '${photo.userId}', '${photo.time}', '${(photo.message||'').replace(/'/g,"\\'")}')">
+                    <img src="${photo.imageUrl}" loading="lazy">
+                </div>
+                <div class="user-photo-info">
+                    <span class="date">📅 ${fullDate}</span>
+                    ${photo.message ? `<span class="message">💬 ${photo.message}</span>` : ''}
+                    ${FEATURES.ENABLE_LIKE_BUTTON ?
+                        `<button class="like-btn" onclick="event.stopPropagation(); likePhoto('${photo.imageUrl}', '${likeId}')">❤️ <span id="${likeId}">${photo.likes||0}</span></button>` :
+                        `<span style="color:#ff4444;">❤️ ${photo.likes||0}</span>`
+                    }
+                </div>
+            </div>`;
+        });
+        html += '</div>';
+        return html;
+    }
+    
+    function renderMessagesContent() {
+        if(!FEATURES.ENABLE_MESSAGE_BOARD) return '';
+        if(!currentMessages.length) return '<div class="loading" style="padding:20px;">💬 暫無留言</div>';
+        let html = '<div class="messages-container">';
+        currentMessages.forEach(msg => {
+            const photoHtml = msg.photoUrl ? `<div class="message-photo-ref" onclick="showPhotoDetail('${msg.photoUrl}', '${userId}', '${msg.photoTime || ''}', '')"><img src="${msg.photoUrl}" onerror="this.style.display=\'none\'"><span>📷 查看照片</span></div>` : '';
+            html += `
+                <div class="message-item">
+                    ${msg.photoUrl ? `<img class="message-photo" src="${msg.photoUrl}" onclick="showPhotoDetail('${msg.photoUrl}', '${userId}', '${msg.photoTime || ''}', '')" onerror="this.style.display='none'">` : '<div class="message-photo" style="background:#e0e0e0; display:flex; align-items:center; justify-content:center;">📝</div>'}
+                    <div class="message-content">
+                        <div class="message-header">
+                            <span class="message-sender">${escapeHtml(msg.senderName || truncateUserId(msg.senderId))}</span>
+                            <span class="message-time">${formatTimeAgo(msg.time)}</span>
+                        </div>
+                        <div class="message-text">${escapeHtml(msg.content)}</div>
+                        ${photoHtml}
+                        <div class="message-actions">
+                            <button class="message-action-btn like-btn" onclick="handleLikeMessage('${msg.id}')">❤️ ${msg.likes||0}</button>
+                            <button class="message-action-btn reply-btn" onclick="handleReplyMessage('${msg.id}', '${userId}')">💬 回覆</button>
+                            ${currentUserId === msg.senderId ? `<button class="message-action-btn delete-btn-msg" onclick="handleDeleteMessage('${msg.id}')">🗑️ 刪除</button>` : ''}
+                        </div>
+                    </div>
+                </div>`;
+        });
+        html += `
+            <div class="message-input-area">
+                <input type="text" id="messageInput" class="message-input" placeholder="寫下你的留言...(限50字)" maxlength="50">
+                <button class="send-btn" onclick="handleSendMessage('${userId}')">發送</button>
+            </div>
+        </div>`;
+        return html;
+    }
+    
+    let currentTag = 'all';
+    function refreshPersonalPhotos(tag) {
+        currentTag = tag;
+        const container = document.getElementById('personalPhotosDiv');
+        if(container) {
+            container.innerHTML = renderPhotosContent(tag);
+        }
+        if (FEATURES.ENABLE_PERSONAL_TAGS) {
+            const btns = document.querySelectorAll('.personal-tags .personal-tag-btn');
+            btns.forEach(btn => btn.classList.remove('active'));
+            if(tag==='all') btns[0]?.classList.add('active');
+            else if(tag==='風景') btns[1]?.classList.add('active');
+            else if(tag==='美食') btns[2]?.classList.add('active');
+            else if(tag==='人物') btns[3]?.classList.add('active');
+        }
+    }
+    function refreshMessages() {
+        if(!FEATURES.ENABLE_MESSAGE_BOARD) return;
+        const container = document.getElementById('personalMessagesDiv');
+        if(container) container.innerHTML = renderMessagesContent();
+    }
+    
+    window.refreshPersonalPhotos = refreshPersonalPhotos;
+    window.refreshMessages = refreshMessages;
+    window.handleLikeMessage = async (msgId) => {
+        if(!FEATURES.ENABLE_MESSAGE_BOARD) return;
+        await likeMessageById(msgId);
+        await loadMessages(userId);
+        if(currentPersonalMode === 'messages') refreshMessages();
+    };
+    window.handleReplyMessage = (msgId, targetUid) => {
+        if(!FEATURES.ENABLE_MESSAGE_BOARD) return;
+        const reply = prompt('輸入回覆內容：');
+        if(reply && reply.trim()) {
+            replyToMessage(msgId, targetUid, reply).then(async () => {
+                await loadMessages(userId);
+                if(currentPersonalMode === 'messages') refreshMessages();
+            });
+        }
+    };
+    window.handleDeleteMessage = (msgId) => {
+        if(!FEATURES.ENABLE_MESSAGE_BOARD) return;
+        showConfirmMsg(msgId, () => {
+            loadMessages(userId).then(() => { if(currentPersonalMode === 'messages') refreshMessages(); });
+        });
+    };
+    window.handleSendMessage = async (targetUid) => {
+        if(!FEATURES.ENABLE_MESSAGE_BOARD) return;
+        const input = document.getElementById('messageInput');
+        const content = input.value.trim();
+        if(!content) return alert('請輸入留言內容');
+        await postMessage(targetUid, content);
+        input.value = '';
+        await loadMessages(userId);
+        if(currentPersonalMode === 'messages') refreshMessages();
+    };
+    window.commentOnPhoto = async (photoUrl, photoTime) => {
+        if(!FEATURES.ENABLE_PHOTO_COMMENT_BUTTON) return;
+        const content = prompt('留言給這位朋友：');
+        if(!content || !content.trim()) return;
+        await postMessage(userId, content, photoUrl, photoTime);
+        await loadMessages(userId);
+        if(currentPersonalMode === 'messages') refreshMessages();
+        alert('留言已送出！');
+    };
+    window.switchToMessages = () => {
+        if(!FEATURES.ENABLE_MESSAGE_BOARD) return;
+        currentPersonalMode = 'messages';
+        const photosDiv = document.getElementById('personalPhotosDiv');
+        const messagesDiv = document.getElementById('personalMessagesDiv');
+        if(photosDiv) photosDiv.style.display = 'none';
+        if(messagesDiv) messagesDiv.style.display = 'block';
+        document.getElementById('personalActionBtn').textContent = '📸 照片';
+        document.getElementById('personalActionBtn').onclick = () => switchToPhotos();
+        refreshMessages();
+    };
+    window.switchToPhotos = () => {
+        currentPersonalMode = 'photos';
+        const photosDiv = document.getElementById('personalPhotosDiv');
+        const messagesDiv = document.getElementById('personalMessagesDiv');
+        if(photosDiv) photosDiv.style.display = 'block';
+        if(messagesDiv) messagesDiv.style.display = 'none';
+        document.getElementById('personalActionBtn').textContent = '💬 留言';
+        document.getElementById('personalActionBtn').onclick = () => switchToMessages();
+        refreshPersonalPhotos(currentTag);
+    };
+    window.editPhotoTag = async (imgUrl, currentTag, uid) => {
+        const newTag = prompt('選擇標籤：\n1. 風景\n2. 美食\n3. 人物', currentTag);
+        if(!newTag) return;
+        let tag = '';
+        if(newTag === '1' || newTag === '風景') tag = '風景';
+        else if(newTag === '2' || newTag === '美食') tag = '美食';
+        else if(newTag === '3' || newTag === '人物') tag = '人物';
+        else tag = newTag;
+        if(tag && (tag === '風景' || tag === '美食' || tag === '人物')) {
+            await fetch('/api/photo/tag', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ imageUrl: imgUrl, userId: currentUserId, tag }) });
+            alert('標籤已更新');
+            showPersonalAlbum(uid);
+        }
+    };
+    window.editBio = async () => {
+        const bio = prompt('請輸入自我介紹：');
+        if(bio !== null) {
+            await fetch('/api/user/profile', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ userId, bio }) });
+            alert('個人資料已更新');
+            showPersonalAlbum(userId);
+        }
+    };
+    
+    const personalHtml = `
+        <div class="personal-nav">
+            <div class="personal-nav-row1">
+                <div class="personal-nav-left">
+                   <button class="back-arrow" onclick="showGroup()">←</button>
+                    <img class="personal-avatar" src="${profile.avatarUrl || 'https://via.placeholder.com/40'}" onerror="this.src='https://via.placeholder.com/40'">
+                    <span class="personal-name">${titleName}</span>
+                    ${isOwner ? `<button class="edit-name-btn" onclick="editDisplayName('${userId}', '${titleName}')">✏️</button>` : ''}
+                </div>
+                ${FEATURES.ENABLE_MESSAGE_BOARD ? `<button id="personalActionBtn" class="personal-action-btn" onclick="switchToMessages()">💬 留言</button>` : ''}
+            </div>
+            <div class="personal-bio">${escapeHtml(profile.bio) || '這個人很懶，還沒有自我介紹～'} ${isOwner ? `<button onclick="editBio()" style="background:none; border:none; color:#667eea; cursor:pointer; font-size:12px; margin-left:6px;">✏️</button>` : ''}</div>
+            ${FEATURES.ENABLE_PERSONAL_TAGS ? `
+            <div class="personal-tags">
+                <button class="personal-tag-btn active" onclick="refreshPersonalPhotos('all')">🏠</button>
+                <button class="personal-tag-btn" onclick="refreshPersonalPhotos('風景')">🌄</button>
+                <button class="personal-tag-btn" onclick="refreshPersonalPhotos('美食')">🍜</button>
+                <button class="personal-tag-btn" onclick="refreshPersonalPhotos('人物')">👤</button>
+            </div>
+            ` : ''}
+        </div>
+        <div id="personalPhotosDiv">${renderPhotosContent('all')}</div>
+        ${FEATURES.ENABLE_MESSAGE_BOARD ? `<div id="personalMessagesDiv" style="display:none;">${renderMessagesContent()}</div>` : ''}
+    `;
+    mainContainer.innerHTML = personalHtml;
+}
+    // 重新綁定刪除按鈕事件（確保點擊有效）
+setTimeout(() => {
+    document.querySelectorAll('.delete-btn').forEach(btn => {
+        const originalOnclick = btn.getAttribute('onclick');
+        if (originalOnclick && !btn.hasAttribute('data-rebound')) {
+            btn.removeAttribute('onclick');
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                eval(originalOnclick);
+            });
+            btn.setAttribute('data-rebound', 'true');
+        }
+    });
+}, 100);
+function showPhotoDetail(imgUrl, userId, time, msg) {
+    modalImg.src = imgUrl;
+    const isOwner = currentUserId && userId === currentUserId;
+    const displayName = userNameMap.get(userId) || truncateUserId(userId);
+    const fullDate = formatFullDateTime(time);
+    modalInfo.innerHTML = `<div>👤 ${displayName}</div><div>📅 ${fullDate}</div>${msg?`<div>💬 ${msg}</div>`:''}${isOwner?`<div style="margin-top:12px;"><button onclick="deleteCurrentPhoto('${imgUrl}','${userId}')" style="background:#ff4444;color:white;border:none;padding:8px20px;border-radius:8px;cursor:pointer;">🗑️ 刪除這張照片</button></div>`:''}`;
+    photoModal.style.display = 'block';
+}
+function deleteCurrentPhoto(imgUrl, userId) {
+    photoModal.style.display = 'none';
+    showConfirm(imgUrl, userId, () => { location.reload(); });
+}
+
+loadDateOptions();
+showTimeline();
+</script>
+</body>
+</html>
