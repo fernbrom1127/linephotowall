@@ -153,11 +153,24 @@
         .confirm-btn { padding:8px 20px; border:none; border-radius:8px; cursor:pointer; }
         .confirm-btn.confirm { background:#ff4444; color:white; }
         .confirm-btn.cancel { background:#ddd; color:#333; }
-    </style>
+    </style><script src="https://accounts.google.com/gsi/client" async defer></script>
+    
 </head>
 <body>
 <div id="mainNavbar" class="navbar">
-    <div class="navbar-content">
+    <div class="navbar-content"><div id="g_id_onload"
+     data-client_id="720728907627-ops2cmqo6cj13dib4b7s15h4r5h1h0t0.apps.googleusercontent.com"
+     data-login_uri="https://photo.bernbrom.com/api/auth/google"
+     data-auto_prompt="false">
+</div>
+<div class="g_id_signin"
+     data-type="standard"
+     data-size="large"
+     data-theme="outline"
+     data-text="sign_in_with"
+     data-shape="rectangular"
+     data-logo_alignment="left">
+</div>
         <div class="logo" onclick="showTimeline()">📸</div>
         <div class="qrcode-banner"><a href="qrcode.html"style="text-decoration: none;" >ℹ️</a></div>
         <div id="navRight" class="nav-right">
