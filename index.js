@@ -395,7 +395,11 @@ app.get('/api/photos/tag/:tag', async (req, res) => {
     const photos = [];
     for (const row of rows) {
       const rowTag = row.get('標籤') || '';
-      if (rowTag !== tag) continue;
+      // 修改這裡：改成檢查「是否包含」查詢的標籤
+      // 注意：toLowerCase() 讓比對不分大小寫，更靈活
+      if (!rowTag.toLowerCase().includes(tag.toLowerCase())) continue;
+      
+      // ... 後面的照片資料處理程式碼保持不變 ...
       const time = row.get('時間') || '';
       let yearMonth = row.get('年月') || '';
       if (!yearMonth && time) yearMonth = time.substring(0, 7);
@@ -411,9 +415,10 @@ app.get('/api/photos/tag/:tag', async (req, res) => {
     }
     photos.reverse();
     res.json(photos);
-  } catch (error) { res.status(500).json({ error: error.message }); }
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
 });
-
 app.get('/api/photos/date/:yearMonth', async (req, res) => {
   if (!googleSheetReady || !photosSheet) return res.json([]);
   try {
