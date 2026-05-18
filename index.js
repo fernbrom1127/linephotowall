@@ -150,7 +150,13 @@ async function uploadToCloudinary(imageBuffer, retries = 3) {
     try {
       const result = await new Promise((resolve, reject) => {
         const uploadStream = cloudinary.uploader.upload_stream(
-          { folder: 'linebot_photos', timeout: 30000 },
+          { 
+            folder: 'linebot_photos', 
+            timeout: 30000,
+            // ★★★ 啟用 Google AI 自動標籤 ★★★
+            categorization: 'google_tagging',
+            auto_tagging: 0.6  // 只保留信心指數 60% 以上的標籤
+          },
           (error, uploadResult) => {
             if (error) return reject(error);
             if (uploadResult && uploadResult.secure_url) resolve(uploadResult);
@@ -160,7 +166,13 @@ async function uploadToCloudinary(imageBuffer, retries = 3) {
         uploadStream.end(imageBuffer);
       });
       console.log(`✅ Cloudinary 上傳成功 (嘗試 ${attempt} 次)`);
-      return result.secure_url;
+      // 顯示 AI 辨識到的標籤
+      if (result.tags && result.tags.length > 0) {
+        console.log(`🏷️ AI 辨識標籤: ${result.tags.join(', ')}`);
+      } else {
+        console.log(`🏷️ AI 未辨識到標籤`);
+      }
+      return result;  // 👈 回傳整個 result 物件（包含 secure_url 和 tags）
     } catch (error) {
       console.error(`❌ Cloudinary 上傳失敗 (嘗試 ${attempt}/${retries}):`, error.message);
       if (attempt === retries) return null;
@@ -169,29 +181,33 @@ async function uploadToCloudinary(imageBuffer, retries = 3) {
   }
   return null;
 }
-
 // ========== 儲存圖片到 Google Sheets ==========
-async function savePhotoToSheet(userId, imageUrl, caption = '') {
+async function savePhotoToSheet(userId, uploadResult, caption = '') {
   if (!googleSheetReady || !photosSheet) return false;
   const yearMonth = new Date().toISOString().substring(0, 7);
+  
+  // 從 Cloudinary 回傳結果中取出 AI 標籤（轉成逗號分隔的文字）
+  const aiTags = (uploadResult.tags && uploadResult.tags.length > 0) 
+    ? uploadResult.tags.join(', ') 
+    : '';
+  
   try {
     await photosSheet.addRow({
       '時間': new Date().toISOString(),
       '使用者ID': userId,
-      '圖片URL': imageUrl,
+      '圖片URL': uploadResult.secure_url,
       '原始訊息': caption || '',
-      '標籤': '',
+      '標籤': aiTags,  // 👈 AI 自動標籤存這裡
       '年月': yearMonth,
       '按讚數': 0
     });
-    console.log(`📸 照片已儲存`);
+    console.log(`📸 照片已儲存，AI 標籤：${aiTags || '無'}`);
     return true;
   } catch (error) {
     console.error('❌ 儲存失敗：', error.message);
     return false;
   }
 }
-
 // ========== 更新照片說明文字 ==========
 async function updatePhotoCaption(imageUrl, caption) {
   if (!googleSheetReady || !photosSheet) return false;
@@ -273,11 +289,11 @@ app.post('/webhook', async (req, res) => {
         });
         console.log(`   ✅ 下載完成：${(imageResponse.data.length/1024).toFixed(2)} KB`);
         
-        const imageUrl = await uploadToCloudinary(imageResponse.data);
-        
-        if (imageUrl) {
-          await savePhotoToSheet(userId, imageUrl, '');
-          pendingCaption[userId] = { imageUrl, timestamp: Date.now() };
+        const uploadResult = await uploadToCloudinary(imageResponse.data);
+
+if (uploadResult) {
+  await savePhotoToSheet(userId, uploadResult, '');
+  pendingCaption[userId] = { imageUrl: uploadResult.secure_url, timestamp: Date.now() };
           await replyToUser(replyToken, 
             `📸 照片已儲存！\n\n` +
             `📝 如需加上說明文字，請在 1 分鐘內輸入（直接傳送文字即可）\n` +
@@ -750,7 +766,7 @@ app.post('/api/upload-web', upload.single('photo'), async (req, res) => {
     if (!imageUrl) throw new Error('Cloudinary 上傳失敗');
 
     // 4. 儲存到 Google Sheets（使用 Google ID 作為使用者識別）
-    await savePhotoToSheet(`google_${googleUserId}`, imageUrl, caption);
+    await savePhotoToSheet(`google_${googleUserId}`, imageUrl, uploadResult,  caption);
 
     res.json({ success: true, imageUrl });
   } catch (error) {
