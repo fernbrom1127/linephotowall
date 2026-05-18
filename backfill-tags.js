@@ -4,11 +4,24 @@ const { JWT } = require('google-auth-library');
 const cloudinary = require('cloudinary').v2;
 const axios = require('axios');
 
-// 讀取環境變數（GitHub Actions 會自動注入）
+// ========== 1. 讀取環境變數 ==========
 const client_email = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
 let private_key = process.env.GOOGLE_PRIVATE_KEY;
+const sheetId = process.env.GOOGLE_SHEET_ID;
 
-// 處理私鑰格式：如果包含 \\n 就轉成真正的換行
+// ========== 2. 設定 Cloudinary ==========
+console.log('🔧 設定 Cloudinary...');
+console.log(`   Cloud Name: ${process.env.CLOUDINARY_CLOUD_NAME ? '已設定' : '❌ 未設定'}`);
+console.log(`   API Key: ${process.env.CLOUDINARY_API_KEY ? '已設定' : '❌ 未設定'}`);
+console.log(`   API Secret: ${process.env.CLOUDINARY_API_SECRET ? '已設定' : '❌ 未設定'}`);
+
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+});
+
+// ========== 3. 處理 Google 私鑰格式 ==========
 if (private_key) {
   // 移除可能的外層雙引號
   private_key = private_key.replace(/^"|"$/g, '');
@@ -16,13 +29,13 @@ if (private_key) {
   private_key = private_key.replace(/\\n/g, '\n');
 }
 
-const sheetId = process.env.GOOGLE_SHEET_ID;
-
+// ========== 4. 檢查環境變數 ==========
 console.log('🔧 檢查環境變數:');
 console.log(`EMAIL: ${client_email ? '已設定' : '❌ 未設定'}`);
 console.log(`PRIVATE KEY: ${private_key ? `已設定 (長度: ${private_key.length})` : '❌ 未設定'}`);
 console.log(`SHEET ID: ${sheetId ? '已設定' : '❌ 未設定'}`);
 
+// ========== 5. 主要函數 ==========
 async function backfillTags() {
   if (!client_email || !private_key || !sheetId) {
     console.error('❌ 缺少必要的環境變數');
@@ -54,7 +67,7 @@ async function backfillTags() {
     
     let updatedCount = 0;
     
-    // 測試模式：只處理前 2 筆
+    // 測試模式：只處理前 2 筆（可以改成 false 來處理全部）
     const testMode = true;
     let processed = 0;
     
@@ -78,11 +91,13 @@ async function backfillTags() {
       console.log(`🔄 處理第 ${i+1}/${rows.length} 筆：${imageUrl.substring(0, 60)}...`);
       
       try {
+        // 下載圖片
         const response = await axios.get(imageUrl, { 
           responseType: 'arraybuffer',
           timeout: 30000 
         });
         
+        // 重新上傳觸發 AI 標籤
         const uploadResult = await new Promise((resolve, reject) => {
           const uploadStream = cloudinary.uploader.upload_stream(
             {
@@ -110,6 +125,7 @@ async function backfillTags() {
           console.log(`⚠️ 未偵測到標籤`);
         }
         
+        // 刪除暫存檔案
         await cloudinary.uploader.destroy(uploadResult.public_id);
         await new Promise(resolve => setTimeout(resolve, 500));
         
@@ -125,4 +141,5 @@ async function backfillTags() {
   }
 }
 
+// ========== 6. 執行程式 ==========
 backfillTags();
