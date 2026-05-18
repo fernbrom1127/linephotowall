@@ -6,6 +6,7 @@ on:
 jobs:
   backfill:
     runs-on: ubuntu-latest
+    environment: photo  # ★★★ 加上這行，指定使用你的「photo」環境 ★★★
     steps:
       - uses: actions/checkout@v3
       
@@ -18,7 +19,6 @@ jobs:
       
       - name: Run backfill script
         env:
-          # ★★★ 關鍵：把 Secrets 轉成環境變數 ★★★
           GOOGLE_SERVICE_ACCOUNT_EMAIL: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_EMAIL }}
           GOOGLE_PRIVATE_KEY: ${{ secrets.GOOGLE_PRIVATE_KEY }}
           GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
