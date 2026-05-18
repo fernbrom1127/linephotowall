@@ -1,7 +1,7 @@
 name: Backfill AI Tags
 
 on:
-  workflow_dispatch:  # 手動觸發
+  workflow_dispatch:
 
 jobs:
   backfill:
@@ -13,12 +13,12 @@ jobs:
         with:
           node-version: '18'
           
-      # ★★★ 關鍵：先安裝依賴 ★★★
       - name: Install dependencies
         run: npm install dotenv axios google-spreadsheet google-auth-library cloudinary
       
       - name: Run backfill script
         env:
+          # ★★★ 關鍵：把 Secrets 轉成環境變數 ★★★
           GOOGLE_SERVICE_ACCOUNT_EMAIL: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_EMAIL }}
           GOOGLE_PRIVATE_KEY: ${{ secrets.GOOGLE_PRIVATE_KEY }}
           GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
