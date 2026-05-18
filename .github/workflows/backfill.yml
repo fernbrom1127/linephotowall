@@ -1,4 +1,4 @@
-name: Backfill AI Tags
+name: Backfill AI Tags (Google Vision)
 
 on:
   workflow_dispatch:
@@ -6,7 +6,6 @@ on:
 jobs:
   backfill:
     runs-on: ubuntu-latest
-    environment: photo  # ★★★ 加上這行，指定使用你的「photo」環境 ★★★
     steps:
       - uses: actions/checkout@v3
       
@@ -15,14 +14,14 @@ jobs:
           node-version: '18'
           
       - name: Install dependencies
-        run: npm install dotenv axios google-spreadsheet google-auth-library cloudinary
+        run: npm install @google-cloud/vision google-spreadsheet google-auth-library axios
       
-      - name: Run backfill script
+      - name: Run backfill script with Google Vision
         env:
+          # Google Sheets 設定
           GOOGLE_SERVICE_ACCOUNT_EMAIL: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_EMAIL }}
           GOOGLE_PRIVATE_KEY: ${{ secrets.GOOGLE_PRIVATE_KEY }}
           GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
-          CLOUDINARY_CLOUD_NAME: ${{ secrets.CLOUDINARY_CLOUD_NAME }}
-          CLOUDINARY_API_KEY: ${{ secrets.CLOUDINARY_API_KEY }}
-          CLOUDINARY_API_SECRET: ${{ secrets.CLOUDINARY_API_SECRET }}
-        run: node backfill-tags.js
+          # Google Vision API 設定（新增）
+          GOOGLE_VISION_KEY_JSON: ${{ secrets.GOOGLE_VISION_KEY_JSON }}
+        run: node backfill-google-vision.js
