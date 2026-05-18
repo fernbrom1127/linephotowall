@@ -13,7 +13,9 @@ jobs:
         with:
           node-version: '18'
           
-      - run: npm install google-spreadsheet google-auth-library cloudinary axios
+      # ★★★ 關鍵：先安裝依賴 ★★★
+      - name: Install dependencies
+        run: npm install dotenv axios google-spreadsheet google-auth-library cloudinary
       
       - name: Run backfill script
         env:
