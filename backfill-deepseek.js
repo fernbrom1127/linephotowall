@@ -1,4 +1,4 @@
-// backfill-deepseek.js - 使用 DeepSeek API 批次補標籤（修正版）
+// backfill-deepseek.js - 使用 DeepSeek API 批次補標籤（完整修正版）
 const { GoogleSpreadsheet } = require('google-spreadsheet');
 const { JWT } = require('google-auth-library');
 const axios = require('axios');
@@ -18,33 +18,32 @@ if (private_key) {
 // ========== 2. DeepSeek API 配置 ==========
 const DEEPSEEK_API_URL = 'https://api.deepseek.com/v1/chat/completions';
 
-// 使用 DeepSeek 獲取圖片標籤（修正版 - 使用 deepseek-chat + images 格式）
+// 使用 DeepSeek 獲取圖片標籤
 async function getLabelsFromDeepSeek(imageUrl) {
   try {
-    // 1. 先下载图片
-    console.log(`   📥 下载图片中...`);
+    // 1. 先下載圖片
+    console.log(`   📥 下載圖片中...`);
     const imageResponse = await axios.get(imageUrl, {
       responseType: 'arraybuffer',
       timeout: 30000,
-      // 添加常见的 User-Agent，避免被 Cloudinary 拒绝
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
       }
     });
     
-    // 2. 转为 Base64
+    // 2. 轉為 Base64
     const imageBase64 = Buffer.from(imageResponse.data).toString('base64');
     const mimeType = imageResponse.headers['content-type'] || 'image/jpeg';
     
-    console.log(`   📤 调用 DeepSeek API...`);
+    console.log(`   📤 呼叫 DeepSeek API...`);
     
-    // 3. 使用 Base64 调用 DeepSeek
+    // 3. DeepSeek 正確的圖片辨識格式（images 參數）
     const requestBody = {
       model: 'deepseek-chat',
       messages: [
         {
           role: 'user',
-          content: '请分析这张照片，识别出照片中的主要物体、场景、人物特征等。请用中文输出，只返回关键词标签，用逗号分隔，最多5个标签。不要有其他说明文字。例如："猫, 动物, 宠物, 室内"',
+          content: '請分析這張照片，識別出照片中的主要物體、場景、人物特徵等。請用中文輸出，只返回關鍵字標籤，用逗號分隔，最多5個標籤。不要有其他說明文字。例如："貓, 動物, 寵物, 室內"',
           images: [`data:${mimeType};base64,${imageBase64}`]
         }
       ],
@@ -61,28 +60,11 @@ async function getLabelsFromDeepSeek(imageUrl) {
     });
     
     const tags = response.data.choices[0].message.content.trim();
-    console.log(`   🏷️ 识别结果: ${tags.substring(0, 80)}...`);
+    console.log(`   🏷️ DeepSeek 辨識到: ${tags.substring(0, 80)}...`);
     return tags;
     
   } catch (error) {
-    console.error(`   ❌ 失败:`, error.message);
-    return '';
-  }
-}
-   
-    
-    // 檢查回應
-    if (response.data && response.data.choices && response.data.choices[0]) {
-      const tags = response.data.choices[0].message.content.trim();
-      console.log(`🏷️ DeepSeek 辨識到: ${tags}`);
-      return tags;
-    } else {
-      console.log('⚠️ DeepSeek 回應格式異常');
-      return '';
-    }
-    
-  } catch (error) {
-    console.error(`❌ DeepSeek API 調用失敗:`, error.response?.data || error.message);
+    console.error(`   ❌ DeepSeek API 調用失敗:`, error.response?.data || error.message);
     return '';
   }
 }
