@@ -1,50 +1,100 @@
-// backfill-tags.js
+// backfill-deepseek.js - 使用 DeepSeek API 批次補標籤（修正版）
 const { GoogleSpreadsheet } = require('google-spreadsheet');
 const { JWT } = require('google-auth-library');
-const cloudinary = require('cloudinary').v2;
 const axios = require('axios');
 
 // ========== 1. 讀取環境變數 ==========
 const client_email = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
 let private_key = process.env.GOOGLE_PRIVATE_KEY;
 const sheetId = process.env.GOOGLE_SHEET_ID;
+const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY;
 
-// ========== 2. 設定 Cloudinary ==========
-console.log('🔧 設定 Cloudinary...');
-console.log(`   Cloud Name: ${process.env.CLOUDINARY_CLOUD_NAME ? '已設定' : '❌ 未設定'}`);
-console.log(`   API Key: ${process.env.CLOUDINARY_API_KEY ? '已設定' : '❌ 未設定'}`);
-console.log(`   API Secret: ${process.env.CLOUDINARY_API_SECRET ? '已設定' : '❌ 未設定'}`);
-
-cloudinary.config({
-  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-  api_key: process.env.CLOUDINARY_API_KEY,
-  api_secret: process.env.CLOUDINARY_API_SECRET,
-});
-
-// ========== 3. 處理 Google 私鑰格式 ==========
+// 處理 Google Sheets 私鑰格式
 if (private_key) {
-  // 移除可能的外層雙引號
   private_key = private_key.replace(/^"|"$/g, '');
-  // 將字面上的 \n 轉成真正的換行符號
   private_key = private_key.replace(/\\n/g, '\n');
 }
 
-// ========== 4. 檢查環境變數 ==========
+// ========== 2. DeepSeek API 配置 ==========
+const DEEPSEEK_API_URL = 'https://api.deepseek.com/v1/chat/completions';
+
+// 使用 DeepSeek 获取图片标签（修正版）
+async function getLabelsFromDeepSeek(imageUrl) {
+  try {
+    // 下載圖片並轉換為 base64
+    const imageResponse = await axios.get(imageUrl, {
+      responseType: 'arraybuffer',
+      timeout: 30000
+    });
+    const imageBase64 = Buffer.from(imageResponse.data).toString('base64');
+    
+    // DeepSeek 正確的圖片辨識格式
+    const requestBody = {
+      model: 'deepseek-chat',
+      messages: [
+        {
+          role: 'user',
+          content: '請分析這張照片，識別出照片中的主要物體、場景、人物特徵等。請用中文輸出，只返回關鍵字標籤，用逗號分隔，最多5個標籤。不要有其他說明文字。例如："貓, 動物, 寵物, 室內"',
+          images: [`data:image/jpeg;base64,${imageBase64}`]  // DeepSeek 的圖片欄位在這裡
+        }
+      ],
+      max_tokens: 100,
+      temperature: 0.3
+    };
+    
+    console.log('🔄 呼叫 DeepSeek API...');
+    
+    const response = await axios.post(
+      DEEPSEEK_API_URL,
+      requestBody,
+      {
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${DEEPSEEK_API_KEY}`
+        },
+        timeout: 30000
+      }
+    );
+    
+    // 檢查回應
+    if (response.data && response.data.choices && response.data.choices[0]) {
+      const tags = response.data.choices[0].message.content.trim();
+      console.log(`🏷️ DeepSeek 辨識到: ${tags}`);
+      return tags;
+    } else {
+      console.log('⚠️ DeepSeek 回應格式異常:', JSON.stringify(response.data).substring(0, 200));
+      return '';
+    }
+    
+  } catch (error) {
+    console.error(`❌ DeepSeek API 調用失敗:`, error.response?.data || error.message);
+    return '';
+  }
+}
+
+// ========== 3. 檢查環境變數 ==========
 console.log('🔧 檢查環境變數:');
 console.log(`EMAIL: ${client_email ? '已設定' : '❌ 未設定'}`);
 console.log(`PRIVATE KEY: ${private_key ? `已設定 (長度: ${private_key.length})` : '❌ 未設定'}`);
 console.log(`SHEET ID: ${sheetId ? '已設定' : '❌ 未設定'}`);
+console.log(`DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY ? '已設定' : '❌ 未設定'}`);
 
-// ========== 5. 主要函數 ==========
-async function backfillTags() {
+// ========== 4. 主要批次處理函數 ==========
+async function backfillTagsWithDeepSeek() {
   if (!client_email || !private_key || !sheetId) {
-    console.error('❌ 缺少必要的環境變數');
+    console.error('❌ 缺少必要的 Google Sheets 環境變數');
     process.exit(1);
   }
   
-  console.log('🔧 開始批次補回 AI 標籤...');
+  if (!DEEPSEEK_API_KEY) {
+    console.error('❌ 缺少 DeepSeek API Key');
+    process.exit(1);
+  }
+  
+  console.log('🔧 開始使用 DeepSeek API 批次補回 AI 標籤...');
   
   try {
+    // 連線 Google Sheets
     const auth = new JWT({
       email: client_email,
       key: private_key,
@@ -66,8 +116,9 @@ async function backfillTags() {
     console.log(`📋 總共有 ${rows.length} 筆照片`);
     
     let updatedCount = 0;
+    let errorCount = 0;
     
-    // 測試模式：只處理前 2 筆（可以改成 false 來處理全部）
+    // 測試模式：先處理前 3 筆測試
     const testMode = true;
     let processed = 0;
     
@@ -75,71 +126,57 @@ async function backfillTags() {
       const row = rows[i];
       const existingTags = row.get('標籤') || '';
       
+      // 跳過已經有標籤的照片
       if (existingTags !== '') {
         console.log(`⏭️ 第 ${i+1} 筆已有標籤，跳過`);
         continue;
       }
       
-      if (testMode && processed >= 2) {
-        console.log('✅ 測試模式完成，已處理 2 張照片');
+      if (testMode && processed >= 3) {
+        console.log('✅ 測試模式完成，已處理 3 張照片');
         break;
       }
       
       const imageUrl = row.get('圖片URL');
-      if (!imageUrl) continue;
+      if (!imageUrl) {
+        console.log(`⚠️ 第 ${i+1} 筆沒有圖片 URL，跳過`);
+        continue;
+      }
       
-      console.log(`🔄 處理第 ${i+1}/${rows.length} 筆：${imageUrl.substring(0, 60)}...`);
+      console.log(`\n🔄 處理第 ${i+1}/${rows.length} 筆：${imageUrl.substring(0, 60)}...`);
       
       try {
-        // 下載圖片
-        const response = await axios.get(imageUrl, { 
-          responseType: 'arraybuffer',
-          timeout: 30000 
-        });
+        const aiTags = await getLabelsFromDeepSeek(imageUrl);
         
-        // 重新上傳觸發 AI 標籤
-        const uploadResult = await new Promise((resolve, reject) => {
-          const uploadStream = cloudinary.uploader.upload_stream(
-            {
-              folder: 'temp_backfill',
-              categorization: 'google_tagging',
-              auto_tagging: 0.6,
-            },
-            (error, result) => {
-              if (error) reject(error);
-              else resolve(result);
-            }
-          );
-          uploadStream.end(response.data);
-        });
-        
-        const aiTags = (uploadResult.tags || []).join(', ');
-        
-        if (aiTags) {
+        if (aiTags && aiTags !== '') {
           row.set('標籤', aiTags);
           await row.save();
           updatedCount++;
           processed++;
-          console.log(`✅ 已更新標籤：${aiTags.substring(0, 50)}...`);
+          console.log(`✅ 已更新標籤：${aiTags.substring(0, 80)}...`);
         } else {
-          console.log(`⚠️ 未偵測到標籤`);
+          console.log(`⚠️ 未偵測到標籤，保留空白`);
+          errorCount++;
         }
         
-        // 刪除暫存檔案
-        await cloudinary.uploader.destroy(uploadResult.public_id);
-        await new Promise(resolve => setTimeout(resolve, 500));
+        // 避免請求太快
+        await new Promise(resolve => setTimeout(resolve, 2000));
         
       } catch (error) {
         console.error(`❌ 處理失敗：`, error.message);
+        errorCount++;
       }
     }
     
-    console.log(`\n🎉 完成！共更新了 ${updatedCount} 筆照片的標籤`);
+    console.log(`\n🎉 完成！`);
+    console.log(`   ✅ 成功更新：${updatedCount} 筆`);
+    console.log(`   ❌ 失敗/無標籤：${errorCount} 筆`);
+    
   } catch (error) {
     console.error('❌ 錯誤：', error.message);
     console.error(error);
   }
 }
 
-// ========== 6. 執行程式 ==========
-backfillTags();
+// ========== 5. 執行程式 ==========
+backfillTagsWithDeepSeek();
