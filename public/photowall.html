@@ -246,13 +246,22 @@ function initGoogleLogin() {
 }
 
 // 點擊 🎯：開啟 Google 登入彈窗
+// 改用跳轉模式，在同一個視窗進行
 function handleGoogleAction() {
     if (googleUser) {
-        // 已登入：跳轉上傳頁面
         goToUploadPage();
     } else {
-        // 未登入：開啟彈窗登入
-        openGoogleLoginPopup();
+        // 直接跳轉到 Google 登入，不開新視窗
+        const redirectUri = window.location.origin + '/auth-callback.html';
+        const authUrl = 'https://accounts.google.com/o/oauth2/v2/auth?' +
+            'client_id=' + encodeURIComponent(GOOGLE_CLIENT_ID) +
+            '&redirect_uri=' + encodeURIComponent(redirectUri) +
+            '&response_type=id_token' +
+            '&scope=openid email profile' +
+            '&nonce=' + Math.random().toString(36).substring(2) +
+            '&prompt=select_account';
+        
+        window.location.href = authUrl;
     }
 }
 
