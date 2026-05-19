@@ -16,7 +16,19 @@ const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 const app = express();
 
 // ========== 1. 基本安全設定 ==========
-app.use(helmet()); // 安全 HTTP 標頭
+app.use(
+  helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'", "'unsafe-inline'"],  // 允許行內腳本
+        styleSrc: ["'self'", "'unsafe-inline'"],   // 允許行內樣式
+        imgSrc: ["'self'", "data:", "https://res.cloudinary.com", "https://lh3.googleusercontent.com"],
+        connectSrc: ["'self'", "https://api.line.me", "https://photo.fernbrom.com"],
+      },
+    },
+  })
+);
 app.use(express.json({ limit: '5mb' })); // 限制 JSON 大小
 app.use(express.static('public'));
 
