@@ -21,40 +21,55 @@ const DEEPSEEK_API_URL = 'https://api.deepseek.com/v1/chat/completions';
 // 使用 DeepSeek 獲取圖片標籤（修正版 - 使用 deepseek-chat + images 格式）
 async function getLabelsFromDeepSeek(imageUrl) {
   try {
-    // 下載圖片並轉換為 base64
+    // 1. 先下载图片
+    console.log(`   📥 下载图片中...`);
     const imageResponse = await axios.get(imageUrl, {
       responseType: 'arraybuffer',
-      timeout: 30000
+      timeout: 30000,
+      // 添加常见的 User-Agent，避免被 Cloudinary 拒绝
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+      }
     });
-    const imageBase64 = Buffer.from(imageResponse.data).toString('base64');
     
-    // DeepSeek 正確的圖片辨識格式（根據測試結果）
+    // 2. 转为 Base64
+    const imageBase64 = Buffer.from(imageResponse.data).toString('base64');
+    const mimeType = imageResponse.headers['content-type'] || 'image/jpeg';
+    
+    console.log(`   📤 调用 DeepSeek API...`);
+    
+    // 3. 使用 Base64 调用 DeepSeek
     const requestBody = {
-      model: 'deepseek-chat',  // ✅ 測試成功的模型
+      model: 'deepseek-chat',
       messages: [
         {
           role: 'user',
-          content: '請分析這張照片，識別出照片中的主要物體、場景、人物特徵等。請用中文輸出，只返回關鍵字標籤，用逗號分隔，最多5個標籤。不要有其他說明文字。例如："貓, 動物, 寵物, 室內"',
-          images: [`data:image/jpeg;base64,${imageBase64}`]  // ✅ 測試成功的格式
+          content: '请分析这张照片，识别出照片中的主要物体、场景、人物特征等。请用中文输出，只返回关键词标签，用逗号分隔，最多5个标签。不要有其他说明文字。例如："猫, 动物, 宠物, 室内"',
+          images: [`data:${mimeType};base64,${imageBase64}`]
         }
       ],
       max_tokens: 100,
       temperature: 0.3
     };
     
-    console.log('🔄 呼叫 DeepSeek API...');
+    const response = await axios.post(DEEPSEEK_API_URL, requestBody, {
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${DEEPSEEK_API_KEY}`
+      },
+      timeout: 30000
+    });
     
-    const response = await axios.post(
-      DEEPSEEK_API_URL,
-      requestBody,
-      {
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${DEEPSEEK_API_KEY}`
-        },
-        timeout: 30000
-      }
-    );
+    const tags = response.data.choices[0].message.content.trim();
+    console.log(`   🏷️ 识别结果: ${tags.substring(0, 80)}...`);
+    return tags;
+    
+  } catch (error) {
+    console.error(`   ❌ 失败:`, error.message);
+    return '';
+  }
+}
+   
     
     // 檢查回應
     if (response.data && response.data.choices && response.data.choices[0]) {
