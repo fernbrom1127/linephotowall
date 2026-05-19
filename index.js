@@ -1,40 +1,94 @@
 const express = require('express');
+const crypto = require('crypto');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
 const axios = require('axios');
 const fs = require('fs');
 const path = require('path');
 const { GoogleSpreadsheet } = require('google-spreadsheet');
 const { JWT } = require('google-auth-library');
 const cloudinary = require('cloudinary').v2;
-// ========== Google 登入驗證 ==========
 const { OAuth2Client } = require('google-auth-library');
 const multer = require('multer');
-const upload = multer({ storage: multer.memoryStorage() });
 
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } }); // 限制 10MB
 const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 const app = express();
-app.use(express.json());
+
+// ========== 1. 基本安全設定 ==========
+app.use(helmet()); // 安全 HTTP 標頭
+app.use(express.json({ limit: '5mb' })); // 限制 JSON 大小
 app.use(express.static('public'));
 
-const LINE_ACCESS_TOKEN = process.env.LINE_ACCESS_TOKEN;
+// ========== 2. 速率限制（防止濫用） ==========
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 分鐘
+  max: 100, // 最多 100 次請求
+  message: '請求過於頻繁，請稍後再試',
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+app.use('/api/', limiter); // API 路由套用速率限制
 
-// ========== Cloudinary 設定 ==========
+// Webhook 專用較寬鬆的限制（LINE 官方可能同時發送多個請求）
+const webhookLimiter = rateLimit({
+  windowMs: 1 * 60 * 1000, // 1 分鐘
+  max: 30,
+  skip: (req) => {
+    // 如果是本地測試或健康檢查，跳過限制
+    return req.ip === '127.0.0.1' || req.path === '/health';
+  }
+});
+
+const LINE_ACCESS_TOKEN = process.env.LINE_ACCESS_TOKEN;
+const LINE_CHANNEL_SECRET = process.env.LINE_CHANNEL_SECRET;
+
+// ========== 3. Cloudinary 設定 ==========
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
   api_key: process.env.CLOUDINARY_API_KEY,
   api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
-// ========== Google Sheets 設定 ==========
+// ========== 4. Google Sheets 設定 ==========
 let googleSheetDoc = null;
 let googleSheetReady = false;
 let photosSheet = null;
 let settingsSheet = null;
 let messagesSheet = null;
-
-// 暫存照片說明文字
 let pendingCaption = {};
 
-// ========== Google Sheets 初始化 (完整版) ==========
+// ========== 5. LINE Webhook 簽章驗證 Middleware ==========
+function verifyLineSignature(req, res, next) {
+  // 跳過開發環境（如果沒有設定 Channel Secret）
+  if (!LINE_CHANNEL_SECRET || LINE_CHANNEL_SECRET === 'your_channel_secret_here') {
+    console.log('⚠️ 跳過簽章驗證（未設定 LINE_CHANNEL_SECRET）');
+    return next();
+  }
+
+  const signature = req.headers['x-line-signature'];
+  if (!signature) {
+    console.error('❌ 缺少 LINE 簽章');
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  // 使用原始請求內容計算簽章
+  const body = JSON.stringify(req.body);
+  const expectedSignature = crypto
+    .createHmac('sha256', LINE_CHANNEL_SECRET)
+    .update(body)
+    .digest('base64');
+
+  if (signature !== expectedSignature) {
+    console.error('❌ 簽章驗證失敗');
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  console.log('✅ LINE 簽章驗證通過');
+  next();
+}
+
+// ========== 6. Google Sheets 初始化 ==========
 async function initGoogleSheets() {
   try {
     console.log('🔧 開始初始化 Google Sheets...');
@@ -59,75 +113,54 @@ async function initGoogleSheets() {
     console.log('✅ 文件載入成功');
     googleSheetDoc = doc;
     
-    // --- 照片牆工作表 (自動修復邏輯) ---
     photosSheet = doc.sheetsByTitle['照片牆'];
     if (!photosSheet) {
       photosSheet = await doc.addSheet({ title: '照片牆' });
       console.log('✅ 已建立全新的「照片牆」工作表');
     }
 
-    // 定義你需要的正確欄位
     const expectedHeaders = ['時間', '使用者ID', '圖片URL', '原始訊息', '標籤', '年月', '按讚數'];
     let currentHeaders = [];
 
-    // 嘗試讀取現有的標題列
     try {
       await photosSheet.loadHeaderRow();
       currentHeaders = photosSheet.headerValues;
-      console.log('📋 讀取到現有標題列:', currentHeaders);
     } catch (headerError) {
-      console.log('⚠️ 讀取標題列失敗，假設工作表為空。');
       currentHeaders = [];
     }
 
-    // 檢查標題列是否需要修復
     let needRepair = false;
     if (currentHeaders.length === 0) {
-      console.log('🔧 標題列為空，需要建立。');
       needRepair = true;
     } else if (currentHeaders.length !== expectedHeaders.length) {
-      console.log(`🔧 欄位數量不匹配 (現有: ${currentHeaders.length}, 需要: ${expectedHeaders.length})，需要重建。`);
       needRepair = true;
     } else {
       for (let i = 0; i < expectedHeaders.length; i++) {
         if (currentHeaders[i] !== expectedHeaders[i]) {
-          console.log(`🔧 欄位名稱不匹配 (第${i+1}欄: 現有「${currentHeaders[i]}」, 需要「${expectedHeaders[i]}」)，需要重建。`);
           needRepair = true;
           break;
         }
       }
     }
 
-    // 如果需要修復，就執行清除並重建
     if (needRepair) {
       console.log('🔄 正在重建「照片牆」工作表結構...');
       try {
         await photosSheet.clear();
         await photosSheet.setHeaderRow(expectedHeaders);
-        console.log('✅ 已成功重建標題列:', expectedHeaders);
+        console.log('✅ 已成功重建標題列');
       } catch (repairError) {
         console.error('❌ 重建工作表失敗:', repairError.message);
         return false;
       }
-    } else {
-      console.log('✅ 標題列檢查無誤，無需修復。');
     }
     
-    // --- 使用者設定工作表 ---
     settingsSheet = doc.sheetsByTitle['使用者設定'];
     if (!settingsSheet) {
       settingsSheet = await doc.addSheet({ title: '使用者設定', headerValues: ['使用者ID', '顯示名稱', '頭像URL', '自我介紹', 'IG帳號', 'FB帳號', '更新時間'] });
       console.log('✅ 已建立「使用者設定」工作表');
-    } else {
-      await settingsSheet.loadHeaderRow();
-      const currentHeaders2 = settingsSheet.headerValues;
-      if (!currentHeaders2.includes('自我介紹')) {
-        await settingsSheet.setHeaderRow([...currentHeaders2, '自我介紹', 'IG帳號', 'FB帳號']);
-        console.log('✅ 已更新「使用者設定」工作表欄位');
-      }
     }
     
-    // --- 留言板工作表 ---
     messagesSheet = doc.sheetsByTitle['留言板'];
     if (!messagesSheet) {
       messagesSheet = await doc.addSheet({ title: '留言板', headerValues: ['留言ID', '目標使用者ID', '留言者ID', '留言內容', '時間', '按讚數', '父留言ID'] });
@@ -144,7 +177,7 @@ async function initGoogleSheets() {
   }
 }
 
-// ========== Cloudinary 上傳圖片 ==========
+// ========== 7. Cloudinary 上傳圖片 ==========
 async function uploadToCloudinary(imageBuffer, retries = 3) {
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {
@@ -154,7 +187,8 @@ async function uploadToCloudinary(imageBuffer, retries = 3) {
             folder: 'linebot_photos', 
             timeout: 30000,
             categorization: 'google_tagging',
-            auto_tagging: 0.6
+            auto_tagging: 0.6,
+            moderation: 'aws_rekognition'  // 自動審核不當內容
           },
           (error, uploadResult) => {
             if (error) return reject(error);
@@ -165,7 +199,7 @@ async function uploadToCloudinary(imageBuffer, retries = 3) {
         uploadStream.end(imageBuffer);
       });
       console.log(`✅ Cloudinary 上傳成功`);
-      return result;  // 👈 回傳整個物件，不只是 secure_url
+      return result;
     } catch (error) {
       console.error(`❌ Cloudinary 上傳失敗:`, error.message);
       if (attempt === retries) return null;
@@ -174,14 +208,16 @@ async function uploadToCloudinary(imageBuffer, retries = 3) {
   }
   return null;
 }
-// ========== 儲存圖片到 Google Sheets ==========
+
+// ========== 8. 儲存圖片到 Google Sheets ==========
 async function savePhotoToSheet(userId, uploadResult, caption = '') {
   if (!googleSheetReady || !photosSheet) return false;
   const yearMonth = new Date().toISOString().substring(0, 7);
   
-  // 從 Cloudinary 回傳結果中取出 AI 標籤（轉成逗號分隔的文字）
+  // 清理輸入內容，防止 XSS 和惡意內容
+  const sanitizedCaption = caption ? caption.replace(/[<>]/g, '').substring(0, 500) : '';
   const aiTags = (uploadResult.tags && uploadResult.tags.length > 0) 
-    ? uploadResult.tags.join(', ') 
+    ? uploadResult.tags.slice(0, 10).join(', ')  // 最多 10 個標籤
     : '';
   
   try {
@@ -189,8 +225,8 @@ async function savePhotoToSheet(userId, uploadResult, caption = '') {
       '時間': new Date().toISOString(),
       '使用者ID': userId,
       '圖片URL': uploadResult.secure_url,
-      '原始訊息': caption || '',
-      '標籤': aiTags,  // 👈 AI 自動標籤存這裡
+      '原始訊息': sanitizedCaption,
+      '標籤': aiTags,
       '年月': yearMonth,
       '按讚數': 0
     });
@@ -201,16 +237,18 @@ async function savePhotoToSheet(userId, uploadResult, caption = '') {
     return false;
   }
 }
-// ========== 更新照片說明文字 ==========
+
+// ========== 9. 更新照片說明文字 ==========
 async function updatePhotoCaption(imageUrl, caption) {
   if (!googleSheetReady || !photosSheet) return false;
+  const sanitizedCaption = caption ? caption.replace(/[<>]/g, '').substring(0, 500) : '';
   try {
     const rows = await photosSheet.getRows();
     for (const row of rows) {
       if (row.get('圖片URL') === imageUrl) {
-        row.set('原始訊息', caption || '');
+        row.set('原始訊息', sanitizedCaption);
         await row.save();
-        console.log(`📝 已更新照片說明：${caption || '無'}`);
+        console.log(`📝 已更新照片說明`);
         return true;
       }
     }
@@ -221,44 +259,47 @@ async function updatePhotoCaption(imageUrl, caption) {
   }
 }
 
-// ========== 回覆輔助函數 ==========
+// ========== 10. 回覆輔助函數 ==========
 async function replyToUser(replyToken, message) {
   if (!replyToken) return;
+  // 限制回覆訊息長度
+  const safeMessage = message ? message.substring(0, 2000) : '';
   try {
     await axios.post('https://api.line.me/v2/bot/message/reply', {
       replyToken,
-      messages: [{ type: 'text', text: message }]
+      messages: [{ type: 'text', text: safeMessage }]
     }, { headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${LINE_ACCESS_TOKEN}` } });
   } catch (error) {
     console.error('回覆失敗：', error.response?.data || error.message);
   }
 }
 
-// ========== 定期清理過期的 pendingCaption ==========
+// ========== 11. 定期清理過期的 pendingCaption ==========
 setInterval(() => {
   const now = Date.now();
   for (const [userId, data] of Object.entries(pendingCaption)) {
     if (now - data.timestamp > 60000) {
       delete pendingCaption[userId];
-      console.log(`🧹 已清理使用者 ${userId.substring(0,8)}... 的 pending 狀態`);
     }
   }
 }, 30000);
 
-// ========== 根目錄轉址 ==========
+// ========== 12. 路由 ==========
 app.get('/', (req, res) => res.redirect('/photowall'));
+app.get('/health', (req, res) => res.status(200).send('OK'));
 
-// ========== 個人相簿專屬頁面 ==========
 app.get('/user/:userId', (req, res) => {
-  res.send(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>我的相簿</title><script>localStorage.setItem('userId','${req.params.userId}');window.location.href='/photowall';</script></head><body>載入中...</body></html>`);
+  // 簡單的 XSS 防護
+  const safeUserId = req.params.userId.replace(/[<>]/g, '');
+  res.send(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>我的相簿</title><script>localStorage.setItem('userId','${safeUserId}');window.location.href='/photowall';</script></head><body>載入中...</body></html>`);
 });
 
-// ========== LINE Webhook（純相簿模式） ==========
-app.post('/webhook', async (req, res) => {
+// ========== 13. LINE Webhook（含簽章驗證） ==========
+app.post('/webhook', webhookLimiter, express.json(), verifyLineSignature, async (req, res) => {
   res.status(200).send('OK');
   
   const events = req.body.events;
-  if (!events) return;
+  if (!events || !Array.isArray(events)) return;
   
   for (const event of events) {
     const replyToken = event.replyToken;
@@ -280,19 +321,23 @@ app.post('/webhook', async (req, res) => {
           responseType: 'arraybuffer',
           timeout: 30000
         });
-        console.log(`   ✅ 下載完成：${(imageResponse.data.length/1024).toFixed(2)} KB`);
+        
+        // 檢查圖片大小（限制 5MB）
+        if (imageResponse.data.length > 5 * 1024 * 1024) {
+          await replyToUser(replyToken, '❌ 圖片過大，請上傳小於 5MB 的照片');
+          continue;
+        }
         
         const uploadResult = await uploadToCloudinary(imageResponse.data);
 
-if (uploadResult) {
-  await savePhotoToSheet(userId, uploadResult, '');
-  pendingCaption[userId] = { imageUrl: uploadResult.secure_url, timestamp: Date.now() };
+        if (uploadResult) {
+          await savePhotoToSheet(userId, uploadResult, '');
+          pendingCaption[userId] = { imageUrl: uploadResult.secure_url, timestamp: Date.now() };
           await replyToUser(replyToken, 
             `📸 照片已儲存！\n\n` +
-            `📝 如需加上說明文字，請在 1 分鐘內輸入（直接傳送文字即可）\n` +
-            `⏸️ 不想寫說明可繼續上傳照片\n\n` +
+            `📝 如需加上說明文字，請在 1 分鐘內輸入\n` +
             `🏠 照片牆：https://photo.fernbrom.com/\n` +
-            `👤 你的個人相簿（可改名／刪照片／設頭貼）：\nhttps://photo.fernbrom.com/user/${userId}`                
+            `👤 個人相簿：https://photo.fernbrom.com/user/${userId}`                
           );
         } else {
           await replyToUser(replyToken, '❌ 圖片上傳失敗，請稍後再試');
@@ -307,11 +352,10 @@ if (uploadResult) {
           delete pendingCaption[userId];
           
           await replyToUser(replyToken, 
-            `✅ 已${caption ? `加上說明：「${caption}」` : '略過說明'}！\n\n` +
-            `🏠 照片牆：https://fbtestbot.onrender.com/photowall`
+            `✅ 已${caption ? `加上說明` : '略過說明'}！\n🏠 照片牆：https://photo.fernbrom.com/photowall`
           );
         } else {
-          await replyToUser(replyToken, '請先傳送照片，再為它加上一段話～\n（傳送照片後有 1 分鐘可以寫說明）');
+          await replyToUser(replyToken, '請先傳送照片，再為它加上說明～');
         }
       }
     } catch (error) {
@@ -321,8 +365,7 @@ if (uploadResult) {
   }
 });
 
-// ========== 照片牆 API ==========
-
+// ========== 14. 照片牆 API（保持原有邏輯，略以節省篇幅） ==========
 app.get('/api/photos', async (req, res) => {
   if (!googleSheetReady || !photosSheet) return res.json([]);
   try {
@@ -887,5 +930,5 @@ const port = process.env.PORT || 3000;
 app.listen(port, async () => {
   console.log(`🚀 純相簿機器人啟動，port: ${port}`);
   await initGoogleSheets();
-  if (googleSheetReady) console.log(`📸 照片牆：https://fbtestbot.onrender.com/photowall`);
+  if (googleSheetReady) console.log(`📸 照片牆已就緒`);
 });
