@@ -1,20 +1,17 @@
-// test-deepseek-models.js - 測試 DeepSeek API 哪個模型支援圖片辨識
+// test-deepseek-models.js (修正版 - 跳過下載步驟)
 const axios = require('axios');
 const fs = require('fs');
 
-// 從命令列參數或環境變數讀取 API Key
 const DEEPSEEK_API_KEY = process.argv[2] || process.env.DEEPSEEK_API_KEY;
 
 if (!DEEPSEEK_API_KEY) {
   console.error('❌ 請提供 API Key');
-  console.error('用法: node test-deepseek-models.js YOUR_API_KEY');
   process.exit(1);
 }
 
-// 測試用圖片 URL（一隻貓咪的公開圖片）
-const TEST_IMAGE_URL = 'https://upload.wikimedia.org/wikipedia/commons/thumb/4/4d/Cat_November_2010-1a.jpg/800px-Cat_November_2010-1a.jpg';
+// 一個 1x1 像素的 Base64 圖片數據 (完全公開且穩定)
+const FALLBACK_IMAGE_BASE64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
 
-// 要測試的模型列表（按可能性排序）
 const MODELS_TO_TEST = [
   'deepseek-chat',
   'deepseek-vl',
@@ -28,29 +25,20 @@ const MODELS_TO_TEST = [
 
 const DEEPSEEK_API_URL = 'https://api.deepseek.com/v1/chat/completions';
 
-// 下載圖片並轉為 base64
-async function downloadImageAsBase64(url) {
-  const response = await axios.get(url, {
-    responseType: 'arraybuffer',
-    timeout: 15000
-  });
-  return Buffer.from(response.data).toString('base64');
-}
-
-// 測試單一模型（使用 images 參數格式）
-async function testModelWithImages(modelName, imageBase64) {
-  console.log(`\n🔍 測試模型: ${modelName} (使用 images 格式)`);
+async function testModel(modelName, imageBase64) {
+  console.log(`\n🔍 測試模型: ${modelName}`);
   
-  const requestBody = {
+  // 先嘗試 DeepSeek 專用的 images 格式
+  let requestBody = {
     model: modelName,
     messages: [
       {
         role: 'user',
         content: '請用一個英文單字描述這張圖片的主要內容',
-        images: [`data:image/jpeg;base64,${imageBase64}`]
+        images: [`data:image/png;base64,${imageBase64}`]
       }
     ],
-    max_tokens: 50,
+    max_tokens: 20,
     temperature: 0.3
   };
   
@@ -60,99 +48,73 @@ async function testModelWithImages(modelName, imageBase64) {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${DEEPSEEK_API_KEY}`
       },
-      timeout: 30000
+      timeout: 15000
     });
     
     const result = response.data.choices[0].message.content;
-    console.log(`   ✅ 成功！回應: ${result}`);
-    return { model: modelName, format: 'images', success: true, result };
+    console.log(`   ✅ 成功 (images 格式)！回應: ${result}`);
+    return { model: modelName, success: true, format: 'images', result };
   } catch (error) {
-    const errorMsg = error.response?.data?.error?.message || error.message;
-    console.log(`   ❌ 失敗: ${errorMsg.substring(0, 100)}`);
-    return { model: modelName, format: 'images', success: false, error: errorMsg };
-  }
-}
-
-// 測試標準 OpenAI 格式（對比用）
-async function testModelWithOpenAIFormat(modelName, imageBase64) {
-  console.log(`\n🔍 測試模型: ${modelName} (使用 OpenAI 格式)`);
-  
-  const requestBody = {
-    model: modelName,
-    messages: [
-      {
-        role: 'user',
-        content: [
-          {
-            type: 'text',
-            text: '請用一個英文單字描述這張圖片'
-          },
-          {
-            type: 'image_url',
-            image_url: {
-              url: `data:image/jpeg;base64,${imageBase64}`
+    let errorMsg = error.response?.data?.error?.message || error.message;
+    
+    // 如果 images 格式失敗，再嘗試 OpenAI 標準格式
+    console.log(`   ⚠️ images 格式失敗，嘗試 OpenAI 格式...`);
+    requestBody = {
+      model: modelName,
+      messages: [
+        {
+          role: 'user',
+          content: [
+            {
+              type: 'text',
+              text: '請用一個英文單字描述這張圖片'
+            },
+            {
+              type: 'image_url',
+              image_url: {
+                url: `data:image/png;base64,${FALLBACK_IMAGE_BASE64}`
+              }
             }
-          }
-        ]
-      }
-    ],
-    max_tokens: 50,
-    temperature: 0.3
-  };
-  
-  try {
-    const response = await axios.post(DEEPSEEK_API_URL, requestBody, {
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${DEEPSEEK_API_KEY}`
-      },
-      timeout: 30000
-    });
+          ]
+        }
+      ],
+      max_tokens: 20,
+      temperature: 0.3
+    };
     
-    const result = response.data.choices[0].message.content;
-    console.log(`   ✅ 成功！回應: ${result}`);
-    return { model: modelName, format: 'openai', success: true, result };
-  } catch (error) {
-    const errorMsg = error.response?.data?.error?.message || error.message;
-    console.log(`   ❌ 失敗: ${errorMsg.substring(0, 100)}`);
-    return { model: modelName, format: 'openai', success: false, error: errorMsg };
+    try {
+      const response2 = await axios.post(DEEPSEEK_API_URL, requestBody, {
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${DEEPSEEK_API_KEY}`
+        },
+        timeout: 15000
+      });
+      
+      const result2 = response2.data.choices[0].message.content;
+      console.log(`   ✅ 成功 (OpenAI 格式)！回應: ${result2}`);
+      return { model: modelName, success: true, format: 'openai', result: result2 };
+    } catch (error2) {
+      let errorMsg2 = error2.response?.data?.error?.message || error2.message;
+      console.log(`   ❌ 失敗: ${errorMsg2.substring(0, 100)}`);
+      return { model: modelName, success: false, format: 'both', error: errorMsg2 };
+    }
   }
 }
 
-// 主程式
 async function main() {
   console.log('🚀 開始測試 DeepSeek 圖片辨識模型\n');
   console.log(`API Key: ${DEEPSEEK_API_KEY.substring(0, 10)}...\n`);
-  console.log('📥 下載測試圖片...');
-  
-  let imageBase64;
-  try {
-    imageBase64 = await downloadImageAsBase64(TEST_IMAGE_URL);
-    console.log('✅ 圖片下載完成\n');
-  } catch (error) {
-    console.error('❌ 圖片下載失敗:', error.message);
-    process.exit(1);
-  }
+  console.log('使用預設 1x1 像素測試圖片\n');
   
   const results = [];
   
-  // 測試所有模型
   for (const model of MODELS_TO_TEST) {
-    // 先測試 images 格式
-    const result1 = await testModelWithImages(model, imageBase64);
-    results.push(result1);
-    
-    // 如果 images 格式失敗，再試 OpenAI 格式
-    if (!result1.success) {
-      const result2 = await testModelWithOpenAIFormat(model, imageBase64);
-      results.push(result2);
-    }
-    
-    // 避免請求太快
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    const result = await testModel(model, FALLBACK_IMAGE_BASE64);
+    results.push(result);
+    await new Promise(resolve => setTimeout(resolve, 500));
   }
   
-  // 輸出總結
   console.log('\n' + '='.repeat(60));
   console.log('📊 測試結果總結');
   console.log('='.repeat(60));
@@ -167,17 +129,6 @@ async function main() {
     }
   } else {
     console.log('\n❌ 沒有找到可用的視覺模型');
-    console.log('\n可能原因:');
-    console.log('   1. 你的 API Key 沒有視覺辨識權限');
-    console.log('   2. 需要在開發者平台申請開通「多模态」功能');
-    console.log('   3. 帳號類型是個人開發者，預設只有文字權限');
-  }
-  
-  if (failed.length > 0) {
-    console.log('\n⚠️ 失敗的模型:');
-    for (const r of failed) {
-      console.log(`   - ${r.model} (${r.format} 格式): ${r.error?.substring(0, 80)}`);
-    }
   }
 }
 
