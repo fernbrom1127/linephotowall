@@ -1,0 +1,24 @@
+name: Test DeepSeek Models
+
+on:
+  workflow_dispatch:
+    inputs:
+      api_key:
+        description: 'DeepSeek API Key'
+        required: true
+        type: string
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+      - name: Install dependencies
+        run: npm install axios
+      - name: Run test
+        env:
+          DEEPSEEK_API_KEY: ${{ inputs.api_key }}
+        run: node test-deepseek-models.js
