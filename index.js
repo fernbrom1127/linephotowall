@@ -153,9 +153,8 @@ async function uploadToCloudinary(imageBuffer, retries = 3) {
           { 
             folder: 'linebot_photos', 
             timeout: 30000,
-            // ★★★ 啟用 Google AI 自動標籤 ★★★
             categorization: 'google_tagging',
-            auto_tagging: 0.6  // 只保留信心指數 60% 以上的標籤
+            auto_tagging: 0.6
           },
           (error, uploadResult) => {
             if (error) return reject(error);
@@ -165,16 +164,10 @@ async function uploadToCloudinary(imageBuffer, retries = 3) {
         );
         uploadStream.end(imageBuffer);
       });
-      console.log(`✅ Cloudinary 上傳成功 (嘗試 ${attempt} 次)`);
-      // 顯示 AI 辨識到的標籤
-      if (result.tags && result.tags.length > 0) {
-        console.log(`🏷️ AI 辨識標籤: ${result.tags.join(', ')}`);
-      } else {
-        console.log(`🏷️ AI 未辨識到標籤`);
-      }
-      return result;  // 👈 回傳整個 result 物件（包含 secure_url 和 tags）
+      console.log(`✅ Cloudinary 上傳成功`);
+      return result;  // 👈 回傳整個物件，不只是 secure_url
     } catch (error) {
-      console.error(`❌ Cloudinary 上傳失敗 (嘗試 ${attempt}/${retries}):`, error.message);
+      console.error(`❌ Cloudinary 上傳失敗:`, error.message);
       if (attempt === retries) return null;
       await new Promise(resolve => setTimeout(resolve, 1000));
     }
