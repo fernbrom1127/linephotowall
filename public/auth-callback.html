@@ -39,42 +39,22 @@
     <div class="spinner"></div>
     <p id="message">登入驗證中...</p>
 </div>
-
+// auth-callback.html
 <script>
-    // 解析 URL 中的 id_token
-    const hash = window.location.hash.substring(1);
-    const params = new URLSearchParams(hash);
-    const idToken = params.get('id_token');
-    const error = params.get('error');
-    
-    if (error) {
-        document.getElementById('message').innerHTML = `<span class="error">❌ 登入失敗：${error}</span><br>請關閉此視窗重試`;
-        setTimeout(() => window.close(), 3000);
-    } else if (idToken) {
-        // 成功取得 token，發送給主頁面
-        document.getElementById('message').innerHTML = `<span class="success">✅ 登入成功！</span><br>即將關閉視窗...`;
-        
-        // 發送訊息給開啟此彈窗的主頁面
-        if (window.opener && !window.opener.closed) {
-            window.opener.postMessage({
-                type: 'google_login_success',
-                credential: idToken
-            }, window.location.origin);
-            
-            // 延遲關閉彈窗
-            setTimeout(() => window.close(), 1500);
-        } else {
-            // 如果找不到主頁面，儲存到 localStorage 並跳轉
-            localStorage.setItem('pendingGoogleToken', idToken);
-            document.getElementById('message').innerHTML = `<span class="success">✅ 登入成功！</span><br>請返回照片牆頁面`;
-            setTimeout(() => {
-                window.location.href = '/photowall';
-            }, 2000);
-        }
-    } else {
-        document.getElementById('message').innerHTML = `<span class="error">❌ 未收到登入憑證</span><br>請關閉此視窗重試`;
-        setTimeout(() => window.close(), 3000);
-    }
+// 從 URL 解析 id_token
+const hashParams = new URLSearchParams(window.location.hash.substring(1));
+const credential = hashParams.get('id_token');
+
+if (credential) {
+    // 儲存到 localStorage
+    localStorage.setItem('pendingGoogleToken', credential);
+    // 導回首頁
+    window.location.href = '/photowall';
+} else {
+    // 登入失敗或取消，也導回首頁
+    window.location.href = '/photowall';
+}
 </script>
+
 </body>
 </html>
