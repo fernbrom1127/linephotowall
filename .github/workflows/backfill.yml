@@ -1,4 +1,4 @@
-name: Backfill AI Tags (Google Vision)
+name: Backfill AI Tags (DeepSeek)
 
 on:
   workflow_dispatch:
@@ -6,7 +6,6 @@ on:
 jobs:
   backfill:
     runs-on: ubuntu-latest
-    environment: photo  # ★★★ 加上這行，指定使用你的 photo 環境 ★★★
     steps:
       - uses: actions/checkout@v3
       
@@ -15,14 +14,14 @@ jobs:
           node-version: '18'
           
       - name: Install dependencies
-        run: npm install @google-cloud/vision google-spreadsheet google-auth-library axios
+        run: npm install google-spreadsheet google-auth-library axios
       
-      - name: Run backfill script with Google Vision
+      - name: Run backfill script with DeepSeek
         env:
           # Google Sheets 設定
           GOOGLE_SERVICE_ACCOUNT_EMAIL: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_EMAIL }}
           GOOGLE_PRIVATE_KEY: ${{ secrets.GOOGLE_PRIVATE_KEY }}
           GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
-          # Google Vision API 設定
-          GOOGLE_VISION_KEY_JSON: ${{ secrets.GOOGLE_VISION_KEY_JSON }}
-        run: node backfill-google-vision.js
+          # DeepSeek API 設定
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+        run: node backfill-deepseek.js
