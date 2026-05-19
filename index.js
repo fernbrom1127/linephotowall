@@ -748,6 +748,7 @@ app.post('/api/auth/google', async (req, res) => {
 });
 
 // 網頁上傳照片接口（需要先 Google 登入）
+// 網頁上傳照片接口（需要先 Google 登入）
 app.post('/api/upload-web', upload.single('photo'), async (req, res) => {
   try {
     // 1. 驗證 Google Token（從 header 取得）
@@ -766,14 +767,15 @@ app.post('/api/upload-web', upload.single('photo'), async (req, res) => {
     const imageBuffer = req.file.buffer;
     const caption = req.body.caption || '';
 
-    // 3. 上傳到 Cloudinary（複用現有函數）
-    const imageUrl = await uploadToCloudinary(imageBuffer);
-    if (!imageUrl) throw new Error('Cloudinary 上傳失敗');
+    // 3. 上傳到 Cloudinary（回傳 uploadResult 物件）
+    const uploadResult = await uploadToCloudinary(imageBuffer);
+    if (!uploadResult) throw new Error('Cloudinary 上傳失敗');
 
-    // 4. 儲存到 Google Sheets（使用 Google ID 作為使用者識別）
-    await savePhotoToSheet(`google_${googleUserId}`, imageUrl, uploadResult,  caption);
+    // 4. 儲存到 Google Sheets（傳入 uploadResult 物件）
+    await savePhotoToSheet(`google_${googleUserId}`, uploadResult, caption);
 
-    res.json({ success: true, imageUrl });
+    // 5. 回傳圖片網址給前端
+    res.json({ success: true, imageUrl: uploadResult.secure_url });
   } catch (error) {
     console.error('上傳失敗:', error);
     res.status(500).json({ error: error.message });
