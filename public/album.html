@@ -333,11 +333,24 @@ async function loadProfile() {
             personalAvatar.src = profile.avatarUrl;
         }
         
-        // 檢查是否為本人（LINE 或 Google）
-        const isOwner = (lineUserId === targetUserId) || (googleUser && `google_${googleUser.userId}` === targetUserId);
+        // ★★★ 判斷是否為本人（編輯名稱權限）★★★
+        const savedUser = localStorage.getItem('googleUser');
+        let isOwner = false;
+        
+        if (savedUser) {
+            try {
+                const googleUser = JSON.parse(savedUser);
+                const myUserId = `google_${googleUser.userId}`;
+                isOwner = (myUserId === targetUserId);
+            } catch(e) {}
+        }
+        
         if (isOwner) {
             editNameBtn.style.display = 'inline-block';
+        } else {
+            editNameBtn.style.display = 'none';
         }
+        
     } catch(e) {
         personalName.innerText = truncateUserId(targetUserId);
     }
@@ -354,25 +367,40 @@ async function loadPhotos() {
         mainContainer.innerHTML = '<div class="loading">❌ 載入失敗</div>';
     }
 }
-
 function renderPhotos() {
     if (!currentPhotosData || currentPhotosData.length === 0) {
         mainContainer.innerHTML = '<div class="loading">📸 暫無照片</div>';
         return;
     }
     
+    // ★★★ 判斷是否為本人 ★★★
+    // targetUserId 是 URL 傳入的使用者 ID
+    // 從 localStorage 讀取登入使用者的 ID
+    const savedUser = localStorage.getItem('googleUser');
+    let isOwner = false;
+    
+    if (savedUser) {
+        try {
+            const googleUser = JSON.parse(savedUser);
+            const myUserId = `google_${googleUser.userId}`;
+            // 只有當 URL 中的 userId 等於自己的 ID 時，才顯示操作按鈕
+            isOwner = (myUserId === targetUserId);
+            console.log('🔐 本人判斷:', isOwner ? '是本人' : '非本人');
+        } catch(e) {}
+    }
+    
     let html = '<div class="user-photo-grid">';
     
     currentPhotosData.forEach(photo => {
-        const photoUserId = photo.userId;
-        const isPhotoOwner = (targetUserId === photoUserId);
-        
         html += `<div class="user-photo-card" style="position:relative;">`;
-        if (isPhotoOwner) {
-            html += `<button class="delete-btn" onclick="event.stopPropagation(); showConfirm('${photo.imageUrl}', '${photoUserId}')">🗑️</button>`;
-            html += `<button class="set-avatar-btn" onclick="event.stopPropagation(); setAsAvatar('${photo.imageUrl}')">👤</button>`;
-            html += `<button class="tag-btn" onclick="event.stopPropagation(); editPhotoTag('${photo.imageUrl}', '${photo.tag || ''}')">🏷️</button>`;
+        
+        // ★★★ 只有本人才能看到這些按鈕 ★★★
+        if (isOwner) {
+            html += `<button class="delete-btn" onclick="event.stopPropagation(); showConfirm('${photo.imageUrl}', '${photo.userId}')" title="刪除">🗑️</button>`;
+            html += `<button class="set-avatar-btn" onclick="event.stopPropagation(); setAsAvatar('${photo.imageUrl}')" title="設為頭像">👤</button>`;
+            html += `<button class="tag-btn" onclick="event.stopPropagation(); editPhotoTag('${photo.imageUrl}', '${photo.tag || ''}')" title="編輯標籤">🏷️</button>`;
         }
+        
         html += `<div onclick="showPhotoDetail('${photo.imageUrl}', '${photo.userId}', '${photo.time}', '${(photo.message||'').replace(/'/g,"\\'")}')">
                     <img src="${photo.imageUrl}" loading="lazy" onerror="this.src='https://via.placeholder.com/300'">
                 </div>
@@ -381,7 +409,6 @@ function renderPhotos() {
     html += '</div>';
     mainContainer.innerHTML = html;
 }
-
 // ========== 照片操作 ==========
 function showPhotoDetail(imgUrl, userId, time, msg) {
     modalImg.src = imgUrl;
