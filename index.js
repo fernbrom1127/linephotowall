@@ -707,11 +707,42 @@ app.post('/api/user/avatar', async (req, res) => {
   } catch (error) { res.status(500).json({ success: false, error: error.message }); }
 });
 
+// ========== 刪除照片 API（含權限驗證） ==========
 app.delete('/api/photo', async (req, res) => {
   if (!googleSheetReady || !photosSheet) return res.status(503).json({ success: false });
   try {
     const { imageUrl, userId } = req.query;
-    if (!userId || !imageUrl) return res.status(400).json({ success: false });
+    if (!userId || !imageUrl) return res.status(400).json({ success: false, error: '缺少必要參數' });
+    
+    // ========== 驗證請求者身份 ==========
+    const authHeader = req.headers.authorization;
+    if (!authHeader) {
+      return res.status(401).json({ success: false, error: '未提供憑證' });
+    }
+    
+    const token = authHeader.split(' ')[1];
+    let requestUserId = null;
+    
+    try {
+      const ticket = await googleClient.verifyIdToken({
+        idToken: token,
+        audience: process.env.GOOGLE_CLIENT_ID,
+      });
+      const payload = ticket.getPayload();
+      requestUserId = `google_${payload.sub}`;
+      console.log(`🔐 驗證成功: ${requestUserId} 嘗試刪除 ${userId} 的照片`);
+    } catch (e) {
+      console.error('Token 驗證失敗:', e.message);
+      return res.status(401).json({ success: false, error: '無效的憑證，請重新登入' });
+    }
+    
+    // ========== 只能刪除自己的照片 ==========
+    if (requestUserId !== userId) {
+      console.error(`❌ 權限不足: ${requestUserId} 試圖刪除 ${userId} 的照片`);
+      return res.status(403).json({ success: false, error: '您沒有權限刪除別人的照片' });
+    }
+    
+    // ========== 執行刪除 ==========
     const rows = await photosSheet.getRows();
     let targetRow = null;
     for (const row of rows) {
@@ -720,10 +751,16 @@ app.delete('/api/photo', async (req, res) => {
         break;
       }
     }
-    if (!targetRow) return res.status(404).json({ success: false, message: '找不到該筆照片' });
+    if (!targetRow) {
+      return res.status(404).json({ success: false, message: '找不到該筆照片' });
+    }
     await targetRow.delete();
+    console.log(`✅ 已刪除照片: ${imageUrl}`);
     res.json({ success: true });
-  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+  } catch (error) { 
+    console.error('刪除失敗:', error);
+    res.status(500).json({ success: false, error: error.message }); 
+  }
 });
 
 // ========== 使用者個人資料 API ==========
