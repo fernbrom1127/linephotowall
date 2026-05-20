@@ -60,14 +60,13 @@
 <div class="navbar">
     <div class="navbar-content">
         <div class="nav-left">
+            <button id="lineNavBtn" class="nav-icon" onclick="showMyAlbum()" title="LINE 個人相簿">👤</button>
             <button id="googleNavBtn" class="nav-icon" onclick="handleGoogleAction()" title="Google 登入">🎯</button>
-            <a href="upload.html" class="nav-icon" title="上傳照片">📸</a>
             <a href="index.html" class="nav-icon active" title="時間軸">🏠</a>
             <a href="random.html" class="nav-icon" title="隨機探索">🎲</a>
             <a href="group.html" class="nav-icon" title="群組成員">👥</a>
         </div>
         <div class="nav-right">
-            <!-- 右邊可以放其他東西，暫時留空 -->
         </div>
     </div>
 </div>
@@ -91,6 +90,16 @@ const GOOGLE_CLIENT_ID = '720728907627-ops2cmqo6cj13dib4b7s15h4r5h1h0t0.apps.goo
 
 let googleUser = null;
 let userNameMap = new Map();
+// ========== LINE 個人相簿 ==========
+let currentUserId = localStorage.getItem('userId');
+
+function showMyAlbum() {
+    if (!currentUserId) {
+        alert('請從 LINE 加入好友後，點擊個人連結使用');
+        return;
+    }
+    window.location.href = `album.html?userId=${currentUserId}`;
+}    
 
 // ========== 輔助函數 ==========
 document.querySelector('.close').onclick = () => document.getElementById('photoModal').style.display = "none";
