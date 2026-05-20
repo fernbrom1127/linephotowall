@@ -270,6 +270,36 @@ function escapeHtml(t) {
     return div.innerHTML;
 }
 
+// ========== 獲取當前登入使用者的 Token 和 ID ==========
+function getCurrentUser() {
+    const savedUser = localStorage.getItem('googleUser');
+    if (!savedUser) return null;
+    try {
+        return JSON.parse(savedUser);
+    } catch(e) {
+        return null;
+    }
+}
+
+function getCurrentUserId() {
+    const user = getCurrentUser();
+    if (user) return `google_${user.userId}`;
+    return null;
+}
+
+function getAuthToken() {
+    const user = getCurrentUser();
+    if (user) return user.token;
+    return null;
+}
+
+// ========== 檢查是否為本人 ==========
+function isOwner() {
+    const myId = getCurrentUserId();
+    if (!myId) return false;
+    return myId === targetUserId;
+}
+
 // ========== LINE 個人相簿 ==========
 function showMyAlbum() {
     if (!lineUserId) {
@@ -286,12 +316,13 @@ function initGoogleLogin() {
         try {
             googleUser = JSON.parse(savedUser);
             updateGoogleButton();
-        } catch(e) {}
+        } catch(e) { console.error(e); }
     }
 }
 
 function handleGoogleAction() {
-    if (googleUser) {
+    const user = getCurrentUser();
+    if (user) {
         window.location.href = 'upload.html';
     } else {
         const redirectUri = window.location.origin + '/auth-callback.html';
@@ -308,7 +339,9 @@ function handleGoogleAction() {
 
 function updateGoogleButton() {
     const btn = document.getElementById('googleNavBtn');
-    if (googleUser) {
+    if (!btn) return;
+    const user = getCurrentUser();
+    if (user) {
         btn.innerHTML = '📸';
         btn.title = '上傳照片';
     } else {
@@ -333,24 +366,12 @@ async function loadProfile() {
             personalAvatar.src = profile.avatarUrl;
         }
         
-        // ★★★ 判斷是否為本人（編輯名稱權限）★★★
-        const savedUser = localStorage.getItem('googleUser');
-        let isOwner = false;
-        
-        if (savedUser) {
-            try {
-                const googleUser = JSON.parse(savedUser);
-                const myUserId = `google_${googleUser.userId}`;
-                isOwner = (myUserId === targetUserId);
-            } catch(e) {}
-        }
-        
-        if (isOwner) {
+        // ★★★ 只有本人才能編輯名稱 ★★★
+        if (isOwner()) {
             editNameBtn.style.display = 'inline-block';
         } else {
             editNameBtn.style.display = 'none';
         }
-        
     } catch(e) {
         personalName.innerText = truncateUserId(targetUserId);
     }
@@ -367,35 +388,22 @@ async function loadPhotos() {
         mainContainer.innerHTML = '<div class="loading">❌ 載入失敗</div>';
     }
 }
+
 function renderPhotos() {
     if (!currentPhotosData || currentPhotosData.length === 0) {
         mainContainer.innerHTML = '<div class="loading">📸 暫無照片</div>';
         return;
     }
     
-    // ★★★ 判斷是否為本人 ★★★
-    // targetUserId 是 URL 傳入的使用者 ID
-    // 從 localStorage 讀取登入使用者的 ID
-    const savedUser = localStorage.getItem('googleUser');
-    let isOwner = false;
-    
-    if (savedUser) {
-        try {
-            const googleUser = JSON.parse(savedUser);
-            const myUserId = `google_${googleUser.userId}`;
-            // 只有當 URL 中的 userId 等於自己的 ID 時，才顯示操作按鈕
-            isOwner = (myUserId === targetUserId);
-            console.log('🔐 本人判斷:', isOwner ? '是本人' : '非本人');
-        } catch(e) {}
-    }
+    const owner = isOwner();
     
     let html = '<div class="user-photo-grid">';
     
     currentPhotosData.forEach(photo => {
         html += `<div class="user-photo-card" style="position:relative;">`;
         
-        // ★★★ 只有本人才能看到這些按鈕 ★★★
-        if (isOwner) {
+        // ★★★ 只有本人才能看到操作按鈕 ★★★
+        if (owner) {
             html += `<button class="delete-btn" onclick="event.stopPropagation(); showConfirm('${photo.imageUrl}', '${photo.userId}')" title="刪除">🗑️</button>`;
             html += `<button class="set-avatar-btn" onclick="event.stopPropagation(); setAsAvatar('${photo.imageUrl}')" title="設為頭像">👤</button>`;
             html += `<button class="tag-btn" onclick="event.stopPropagation(); editPhotoTag('${photo.imageUrl}', '${photo.tag || ''}')" title="編輯標籤">🏷️</button>`;
@@ -409,7 +417,8 @@ function renderPhotos() {
     html += '</div>';
     mainContainer.innerHTML = html;
 }
-// ========== 照片操作 ==========
+
+// ========== 照片詳情 ==========
 function showPhotoDetail(imgUrl, userId, time, msg) {
     modalImg.src = imgUrl;
     const displayName = personalName.innerText;
@@ -418,8 +427,14 @@ function showPhotoDetail(imgUrl, userId, time, msg) {
     photoModal.style.display = 'block';
 }
 
+// ========== 刪除確認 ==========
 function showConfirm(imageUrl, photoUserId) {
-    // 檢查是否有權限刪除（只有本人可以刪除）
+    // ★★★ 確認權限 ★★★
+    if (!isOwner()) {
+        alert('您沒有權限刪除這張照片');
+        return;
+    }
+    
     if (targetUserId !== photoUserId) {
         alert('您沒有權限刪除這張照片');
         return;
@@ -435,24 +450,15 @@ function showConfirm(imageUrl, photoUserId) {
     confirmOverlay.style.display = 'flex';
 }
 
+// ========== 執行刪除 ==========
 async function executeDelete() {
     if (!pendingDelete.imageUrl) return;
     const { imageUrl, callback } = pendingDelete;
     hideConfirm();
     
-    // 取得 Google 登入的 Token
-    const savedUser = localStorage.getItem('googleUser');
-    if (!savedUser) {
-        alert('請先登入 Google');
-        return;
-    }
-    
-    const googleUser = JSON.parse(savedUser);
-    const token = googleUser.token;
-    
+    const token = getAuthToken();
     if (!token) {
-        alert('登入已過期，請重新登入');
-        window.location.href = '/index.html';
+        alert('請先登入');
         return;
     }
     
@@ -476,11 +482,26 @@ async function executeDelete() {
     }
 }
 
+// ========== 設為頭像 ==========
 async function setAsAvatar(imageUrl) {
+    if (!isOwner()) {
+        alert('您沒有權限修改頭像');
+        return;
+    }
+    
+    const token = getAuthToken();
+    if (!token) {
+        alert('請先登入');
+        return;
+    }
+    
     try {
         const res = await fetch(API_BASE + '/api/user/avatar', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
             body: JSON.stringify({ userId: targetUserId, avatarUrl: imageUrl })
         });
         const data = await res.json();
@@ -488,14 +509,20 @@ async function setAsAvatar(imageUrl) {
             alert('✅ 已設為頭像！');
             personalAvatar.src = imageUrl;
         } else {
-            alert('設定失敗');
+            alert('設定失敗：' + (data.error || '未知錯誤'));
         }
     } catch(e) {
         alert('設定失敗');
     }
 }
 
+// ========== 編輯標籤 ==========
 async function editPhotoTag(imageUrl, currentTag) {
+    if (!isOwner()) {
+        alert('您沒有權限修改標籤');
+        return;
+    }
+    
     const newTag = prompt('選擇標籤：\n1. 風景\n2. 美食\n3. 人物\n\n或輸入其他文字', currentTag || '');
     if (newTag === null) return;
     
@@ -506,10 +533,19 @@ async function editPhotoTag(imageUrl, currentTag) {
     else tag = newTag.trim();
     
     if (tag) {
+        const token = getAuthToken();
+        if (!token) {
+            alert('請先登入');
+            return;
+        }
+        
         try {
             const res = await fetch(API_BASE + '/api/photo/tag', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
                 body: JSON.stringify({ imageUrl, userId: targetUserId, tag })
             });
             const data = await res.json();
@@ -517,7 +553,7 @@ async function editPhotoTag(imageUrl, currentTag) {
                 alert('✅ 標籤已更新');
                 loadPhotos();
             } else {
-                alert('更新失敗');
+                alert('更新失敗：' + (data.error || '未知錯誤'));
             }
         } catch(e) {
             alert('更新失敗');
@@ -525,13 +561,28 @@ async function editPhotoTag(imageUrl, currentTag) {
     }
 }
 
+// ========== 編輯顯示名稱 ==========
 async function editDisplayName() {
+    if (!isOwner()) {
+        alert('您沒有權限修改名稱');
+        return;
+    }
+    
     const newName = prompt('請輸入您希望顯示的名稱：', personalName.innerText);
     if (newName && newName.trim()) {
+        const token = getAuthToken();
+        if (!token) {
+            alert('請先登入');
+            return;
+        }
+        
         try {
             const res = await fetch(API_BASE + '/api/user/displayname', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
                 body: JSON.stringify({ userId: targetUserId, displayName: newName.trim() })
             });
             const data = await res.json();
@@ -539,7 +590,7 @@ async function editDisplayName() {
                 alert('✅ 名稱已更新');
                 personalName.innerText = newName.trim();
             } else {
-                alert('更新失敗');
+                alert('更新失敗：' + (data.error || '未知錯誤'));
             }
         } catch(e) {
             alert('更新失敗');
