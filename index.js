@@ -14,53 +14,83 @@ const multer = require('multer');
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } }); // 限制 10MB
 const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 const app = express();
-// 在檔案開頭，其他 middleware 之前加入
-app.use((req, res, next) => {
-    // 允許來自 Static Site 的請求
-    const allowedOrigins = [
-        'https://newlinephotowall.onrender.com',
-        'https://photo.fernbrom.com',
-        'http://localhost:3000'  // 本地開發用
-    ];
-    
-    const origin = req.headers.origin;
-    if (allowedOrigins.includes(origin)) {
-        res.setHeader('Access-Control-Allow-Origin', origin);
-    }
-    
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-    res.setHeader('Access-Control-Allow-Credentials', 'true');
-    
-    // 處理 preflight 請求
-    if (req.method === 'OPTIONS') {
-        return res.sendStatus(200);
-    }
-    
-    next();
-});
-// ========== 1. 基本安全設定 ==========
 
+// ========== GitHub Actions 觸發函數 ==========
+async function triggerGitHubAction() {
+  try {
+    const githubToken = process.env.GH_PAT_TOKEN;
+    if (!githubToken) {
+      console.log('⚠️ 未設定 GH_PAT_TOKEN，跳過觸發 GitHub Actions');
+      return;
+    }
+    
+    const repo = 'fernbrom1127/linephotowall';
+    const workflowId = 'update-photos-json.yml';
+    
+    await axios.post(
+      `https://api.github.com/repos/${repo}/actions/workflows/${workflowId}/dispatches`,
+      {
+        ref: 'main',
+        inputs: {
+          trigger: 'new_upload'
+        }
+      },
+      {
+        headers: {
+          'Authorization': `Bearer ${githubToken}`,
+          'Accept': 'application/vnd.github.v3+json'
+        }
+      }
+    );
+    console.log('✅ 已觸發 GitHub Actions 更新 photos.json');
+  } catch (error) {
+    console.error('❌ 觸發 GitHub Actions 失敗:', error.response?.data || error.message);
+  }
+}
+
+// ========== CORS 設定 ==========
+app.use((req, res, next) => {
+  const allowedOrigins = [
+    'https://newlinephotowall.onrender.com',
+    'https://photo.fernbrom.com',
+    'http://localhost:3000'
+  ];
+  
+  const origin = req.headers.origin;
+  if (allowedOrigins.includes(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+  }
+  
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+  
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(200);
+  }
+  
+  next();
+});
+
+// ========== 基本安全設定 ==========
 app.use(helmet({ contentSecurityPolicy: false }));
-app.use(express.json({ limit: '5mb' })); // 限制 JSON 大小
+app.use(express.json({ limit: '5mb' }));
 app.use(express.static('public'));
 
-// ========== 2. 速率限制（防止濫用） ==========
+// ========== 速率限制 ==========
 const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 分鐘
-  max: 100, // 最多 100 次請求
+  windowMs: 15 * 60 * 1000,
+  max: 100,
   message: '請求過於頻繁，請稍後再試',
   standardHeaders: true,
   legacyHeaders: false,
 });
-app.use('/api/', limiter); // API 路由套用速率限制
+app.use('/api/', limiter);
 
-// Webhook 專用較寬鬆的限制（LINE 官方可能同時發送多個請求）
 const webhookLimiter = rateLimit({
-  windowMs: 1 * 60 * 1000, // 1 分鐘
+  windowMs: 1 * 60 * 1000,
   max: 30,
   skip: (req) => {
-    // 如果是本地測試或健康檢查，跳過限制
     return req.ip === '127.0.0.1' || req.path === '/health';
   }
 });
@@ -68,14 +98,14 @@ const webhookLimiter = rateLimit({
 const LINE_ACCESS_TOKEN = process.env.LINE_ACCESS_TOKEN;
 const LINE_CHANNEL_SECRET = process.env.LINE_CHANNEL_SECRET;
 
-// ========== 3. Cloudinary 設定 ==========
+// ========== Cloudinary 設定 ==========
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
   api_key: process.env.CLOUDINARY_API_KEY,
   api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
-// ========== 4. Google Sheets 設定 ==========
+// ========== Google Sheets 設定 ==========
 let googleSheetDoc = null;
 let googleSheetReady = false;
 let photosSheet = null;
@@ -83,9 +113,8 @@ let settingsSheet = null;
 let messagesSheet = null;
 let pendingCaption = {};
 
-// ========== 5. LINE Webhook 簽章驗證 Middleware ==========
+// ========== LINE Webhook 簽章驗證 ==========
 function verifyLineSignature(req, res, next) {
-  // 跳過開發環境（如果沒有設定 Channel Secret）
   if (!LINE_CHANNEL_SECRET || LINE_CHANNEL_SECRET === 'your_channel_secret_here') {
     console.log('⚠️ 跳過簽章驗證（未設定 LINE_CHANNEL_SECRET）');
     return next();
@@ -97,7 +126,6 @@ function verifyLineSignature(req, res, next) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
-  // 使用原始請求內容計算簽章
   const body = JSON.stringify(req.body);
   const expectedSignature = crypto
     .createHmac('sha256', LINE_CHANNEL_SECRET)
@@ -113,7 +141,7 @@ function verifyLineSignature(req, res, next) {
   next();
 }
 
-// ========== 6. Google Sheets 初始化 ==========
+// ========== Google Sheets 初始化 ==========
 async function initGoogleSheets() {
   try {
     console.log('🔧 開始初始化 Google Sheets...');
@@ -202,7 +230,7 @@ async function initGoogleSheets() {
   }
 }
 
-// ========== 7. Cloudinary 上傳圖片 ==========
+// ========== Cloudinary 上傳圖片 ==========
 async function uploadToCloudinary(imageBuffer, retries = 3) {
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {
@@ -213,7 +241,6 @@ async function uploadToCloudinary(imageBuffer, retries = 3) {
             timeout: 30000,
             categorization: 'google_tagging',
             auto_tagging: 0.6,
-           
           },
           (error, uploadResult) => {
             if (error) return reject(error);
@@ -234,15 +261,14 @@ async function uploadToCloudinary(imageBuffer, retries = 3) {
   return null;
 }
 
-// ========== 8. 儲存圖片到 Google Sheets ==========
+// ========== 儲存圖片到 Google Sheets ==========
 async function savePhotoToSheet(userId, uploadResult, caption = '') {
   if (!googleSheetReady || !photosSheet) return false;
   const yearMonth = new Date().toISOString().substring(0, 7);
   
-  // 清理輸入內容，防止 XSS 和惡意內容
   const sanitizedCaption = caption ? caption.replace(/[<>]/g, '').substring(0, 500) : '';
   const aiTags = (uploadResult.tags && uploadResult.tags.length > 0) 
-    ? uploadResult.tags.slice(0, 10).join(', ')  // 最多 10 個標籤
+    ? uploadResult.tags.slice(0, 10).join(', ')
     : '';
   
   try {
@@ -263,7 +289,7 @@ async function savePhotoToSheet(userId, uploadResult, caption = '') {
   }
 }
 
-// ========== 9. 更新照片說明文字 ==========
+// ========== 更新照片說明文字 ==========
 async function updatePhotoCaption(imageUrl, caption) {
   if (!googleSheetReady || !photosSheet) return false;
   const sanitizedCaption = caption ? caption.replace(/[<>]/g, '').substring(0, 500) : '';
@@ -284,10 +310,9 @@ async function updatePhotoCaption(imageUrl, caption) {
   }
 }
 
-// ========== 10. 回覆輔助函數 ==========
+// ========== 回覆輔助函數 ==========
 async function replyToUser(replyToken, message) {
   if (!replyToken) return;
-  // 限制回覆訊息長度
   const safeMessage = message ? message.substring(0, 2000) : '';
   try {
     await axios.post('https://api.line.me/v2/bot/message/reply', {
@@ -299,7 +324,7 @@ async function replyToUser(replyToken, message) {
   }
 }
 
-// ========== 11. 定期清理過期的 pendingCaption ==========
+// ========== 定期清理過期的 pendingCaption ==========
 setInterval(() => {
   const now = Date.now();
   for (const [userId, data] of Object.entries(pendingCaption)) {
@@ -309,17 +334,16 @@ setInterval(() => {
   }
 }, 30000);
 
-// ========== 12. 路由 ==========
+// ========== 路由 ==========
 app.get('/', (req, res) => res.redirect('/photowall'));
 app.get('/health', (req, res) => res.status(200).send('OK'));
 
 app.get('/user/:userId', (req, res) => {
-  // 簡單的 XSS 防護
   const safeUserId = req.params.userId.replace(/[<>]/g, '');
   res.send(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>我的相簿</title><script>localStorage.setItem('userId','${safeUserId}');window.location.href='/photowall';</script></head><body>載入中...</body></html>`);
 });
 
-// ========== 13. LINE Webhook（含簽章驗證） ==========
+// ========== LINE Webhook ==========
 app.post('/webhook', webhookLimiter, express.json(), verifyLineSignature, async (req, res) => {
   res.status(200).send('OK');
   
@@ -347,7 +371,6 @@ app.post('/webhook', webhookLimiter, express.json(), verifyLineSignature, async 
           timeout: 30000
         });
         
-        // 檢查圖片大小（限制 5MB）
         if (imageResponse.data.length > 5 * 1024 * 1024) {
           await replyToUser(replyToken, '❌ 圖片過大，請上傳小於 5MB 的照片');
           continue;
@@ -358,6 +381,10 @@ app.post('/webhook', webhookLimiter, express.json(), verifyLineSignature, async 
         if (uploadResult) {
           await savePhotoToSheet(userId, uploadResult, '');
           pendingCaption[userId] = { imageUrl: uploadResult.secure_url, timestamp: Date.now() };
+          
+          // ★★★ 觸發 GitHub Actions 更新 photos.json ★★★
+          triggerGitHubAction().catch(e => console.error('觸發失敗:', e.message));
+          
           await replyToUser(replyToken, 
             `📸 照片已儲存！\n\n` +
             `📝 如需加上說明文字，請在 1 分鐘內輸入\n` +
@@ -390,7 +417,39 @@ app.post('/webhook', webhookLimiter, express.json(), verifyLineSignature, async 
   }
 });
 
-// ========== 14. 照片牆 API（保持原有邏輯，略以節省篇幅） ==========
+// ========== 網頁上傳照片接口 ==========
+app.post('/api/upload-web', upload.single('photo'), async (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader) return res.status(401).json({ error: '未提供憑證' });
+    
+    const token = authHeader.split(' ')[1];
+    const ticket = await googleClient.verifyIdToken({
+      idToken: token,
+      audience: process.env.GOOGLE_CLIENT_ID,
+    });
+    const payload = ticket.getPayload();
+    const googleUserId = payload.sub;
+
+    const imageBuffer = req.file.buffer;
+    const caption = req.body.caption || '';
+
+    const uploadResult = await uploadToCloudinary(imageBuffer);
+    if (!uploadResult) throw new Error('Cloudinary 上傳失敗');
+
+    await savePhotoToSheet(`google_${googleUserId}`, uploadResult, caption);
+
+    // ★★★ 觸發 GitHub Actions 更新 photos.json ★★★
+    triggerGitHubAction().catch(e => console.error('觸發失敗:', e.message));
+
+    res.json({ success: true, imageUrl: uploadResult.secure_url });
+  } catch (error) {
+    console.error('上傳失敗:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ========== 照片牆 API ==========
 app.get('/api/photos', async (req, res) => {
   if (!googleSheetReady || !photosSheet) return res.json([]);
   try {
@@ -456,11 +515,7 @@ app.get('/api/photos/tag/:tag', async (req, res) => {
     const photos = [];
     for (const row of rows) {
       const rowTag = row.get('標籤') || '';
-      // 修改這裡：改成檢查「是否包含」查詢的標籤
-      // 注意：toLowerCase() 讓比對不分大小寫，更靈活
       if (!rowTag.toLowerCase().includes(tag.toLowerCase())) continue;
-      
-      // ... 後面的照片資料處理程式碼保持不變 ...
       const time = row.get('時間') || '';
       let yearMonth = row.get('年月') || '';
       if (!yearMonth && time) yearMonth = time.substring(0, 7);
@@ -480,6 +535,7 @@ app.get('/api/photos/tag/:tag', async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
+
 app.get('/api/photos/date/:yearMonth', async (req, res) => {
   if (!googleSheetReady || !photosSheet) return res.json([]);
   try {
@@ -779,7 +835,8 @@ app.get('/api/messages/:userId', async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
-// Google 登入回調（接收前端傳來的 id_token）
+
+// ========== Google 登入 ==========
 app.post('/api/auth/google', async (req, res) => {
   try {
     const { credential } = req.body;
@@ -788,13 +845,11 @@ app.post('/api/auth/google', async (req, res) => {
       audience: process.env.GOOGLE_CLIENT_ID,
     });
     const payload = ticket.getPayload();
-    const googleUserId = payload.sub;        // Google 唯一 ID
+    const googleUserId = payload.sub;
     const email = payload.email;
     const name = payload.name;
     const avatar = payload.picture;
 
-    // 這裡可以將 Google 用戶資訊儲存到您的 Google Sheets 或記憶體
-    // 並回傳一個 session token 給前端
     res.json({ 
       success: true, 
       userId: googleUserId,
@@ -808,40 +863,7 @@ app.post('/api/auth/google', async (req, res) => {
   }
 });
 
-// 網頁上傳照片接口（需要先 Google 登入）
-// 網頁上傳照片接口（需要先 Google 登入）
-app.post('/api/upload-web', upload.single('photo'), async (req, res) => {
-  try {
-    // 1. 驗證 Google Token（從 header 取得）
-    const authHeader = req.headers.authorization;
-    if (!authHeader) return res.status(401).json({ error: '未提供憑證' });
-    
-    const token = authHeader.split(' ')[1];
-    const ticket = await googleClient.verifyIdToken({
-      idToken: token,
-      audience: process.env.GOOGLE_CLIENT_ID,
-    });
-    const payload = ticket.getPayload();
-    const googleUserId = payload.sub;
-
-    // 2. 獲取上傳圖片
-    const imageBuffer = req.file.buffer;
-    const caption = req.body.caption || '';
-
-    // 3. 上傳到 Cloudinary（回傳 uploadResult 物件）
-    const uploadResult = await uploadToCloudinary(imageBuffer);
-    if (!uploadResult) throw new Error('Cloudinary 上傳失敗');
-
-    // 4. 儲存到 Google Sheets（傳入 uploadResult 物件）
-    await savePhotoToSheet(`google_${googleUserId}`, uploadResult, caption);
-
-    // 5. 回傳圖片網址給前端
-    res.json({ success: true, imageUrl: uploadResult.secure_url });
-  } catch (error) {
-    console.error('上傳失敗:', error);
-    res.status(500).json({ error: error.message });
-  }
-});
+// ========== 留言板操作 ==========
 app.post('/api/messages', async (req, res) => {
   if (!googleSheetReady || !messagesSheet) return res.status(503).json({ error: '服務未就緒' });
   try {
@@ -948,9 +970,7 @@ app.get('/photowall', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'photowall.html'));
 });
 
-app.get('/health', (req, res) => res.status(200).send('OK'));
-
-// 啟動伺服器
+// ========== 啟動伺服器 ==========
 const port = process.env.PORT || 3000;
 app.listen(port, async () => {
   console.log(`🚀 純相簿機器人啟動，port: ${port}`);
