@@ -290,7 +290,6 @@
         </div>
     </div>
 </div>
-
 <script>
     const API_BASE = 'https://photo.fernbrom.com';
     
@@ -322,21 +321,21 @@
             document.getElementById('userAvatar').src = googleUser.avatarUrl || 'https://via.placeholder.com/44';
             document.getElementById('userName').innerText = googleUser.displayName || googleUser.email;
         } catch(e) {
-            window.location.href = '/photowall';
+            window.location.href = '/index.html';
         }
     } else {
-        alert('請先從照片牆點擊 🎯 登入 Google');
-        window.location.href = '/photowall';
+        alert('請先點擊 🎯 登入 Google');
+        window.location.href = '/index.html';
     }
     
     // ========== 導航函數 ==========
     function goBack() {
-        window.location.href = '/photowall';
+        window.location.href = '/index.html';
     }
     
     function logoutAndGoBack() {
         localStorage.removeItem('googleUser');
-        window.location.href = '/photowall';
+        window.location.href = '/index.html';
     }
     
     function hideConfirm() {
@@ -351,9 +350,8 @@
         myPhotosGrid.innerHTML = '<div class="loading-spinner">⏳ 載入中...</div>';
         
         try {
-            // 使用 google_ 前綴的 userId 來查詢
             const googleUserId = `google_${googleUser.userId}`;
-            const res = await fetch(API_BASE +`/api/photos/user/${encodeURIComponent(googleUserId)}`);
+            const res = await fetch(API_BASE + `/api/photos/user/${encodeURIComponent(googleUserId)}`);
             myPhotos = await res.json();
             renderMyPhotos();
         } catch (error) {
@@ -404,10 +402,6 @@
             imageUrl: imageUrl, 
             refreshCallback: () => {
                 loadMyPhotos();
-                // 同時更新照片牆如果有打開的話
-                if (window.opener && !window.opener.closed) {
-                    // 通知父頁面重新整理
-                }
             }
         };
         document.getElementById('confirmMessage').innerText = '確定要刪除這張照片嗎？';
@@ -416,59 +410,66 @@
         confirmOverlay.style.display = 'flex';
     }
     
-    // 執行刪除
-   async function executeDelete() {
-    if (!pendingDelete.imageUrl) return;
-    const { imageUrl, callback } = pendingDelete;
-    hideConfirm();
-    
-    // 檢查 targetUserId
-    if (!targetUserId) {
-        alert('無法識別使用者');
-        return;
-    }
-    
-    const token = getAuthToken();
-    if (!token) {
-        alert('請先登入');
-        return;
-    }
-    
-    try {
-        const res = await fetch(API_BASE + `/api/photo?imageUrl=${encodeURIComponent(imageUrl)}&userId=${encodeURIComponent(targetUserId)}`, {
-            method: 'DELETE',
-            headers: {
-                'Authorization': `Bearer ${token}`
-            }
-        });
-        const data = await res.json();
-        if (data.success) {
-            alert('✅ 照片已刪除');
-            if (callback) callback();
-        } else {
-            alert('刪除失敗：' + (data.error || data.message || '未知錯誤'));
+    // ★★★ 執行刪除（修正版）★★★
+    async function executeDelete() {
+        if (!pendingDelete.imageUrl) return;
+        const { imageUrl, refreshCallback } = pendingDelete;
+        hideConfirm();
+        
+        if (!googleUser) {
+            alert('請先登入');
+            return;
         }
-    } catch(e) {
-        console.error('刪除錯誤:', e);
-        alert('刪除失敗：' + e.message);
+        
+        const token = googleUser.token;
+        if (!token) {
+            alert('登入已過期，請重新登入');
+            window.location.href = '/index.html';
+            return;
+        }
+        
+        const userId = `google_${googleUser.userId}`;
+        
+        try {
+            const res = await fetch(API_BASE + `/api/photo?imageUrl=${encodeURIComponent(imageUrl)}&userId=${encodeURIComponent(userId)}`, {
+                method: 'DELETE',
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+            const data = await res.json();
+            if (data.success) {
+                alert('✅ 照片已刪除');
+                if (refreshCallback) refreshCallback();
+            } else {
+                alert('刪除失敗：' + (data.error || data.message || '未知錯誤'));
+            }
+        } catch(e) {
+            console.error('刪除錯誤:', e);
+            alert('刪除失敗：' + e.message);
+        }
     }
-}
+    
     // 設為頭像
     async function setAsAvatar(imageUrl) {
         const googleUserId = `google_${googleUser.userId}`;
+        const token = googleUser.token;
+        
         try {
-            const res = await fetch(API_BASE +'/api/user/avatar', { 
+            const res = await fetch(API_BASE + '/api/user/avatar', { 
                 method: 'POST', 
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
                 body: JSON.stringify({ userId: googleUserId, avatarUrl: imageUrl }) 
             });
             const data = await res.json();
             if (data.success) {
                 alert('✅ 已設為頭像！');
-                // 更新頁面上顯示的頭像
                 document.getElementById('userAvatar').src = imageUrl;
             } else {
-                alert('設定失敗');
+                alert('設定失敗：' + (data.error || '未知錯誤'));
             }
         } catch (error) {
             console.error('設定頭像錯誤:', error);
@@ -489,18 +490,23 @@
         
         if (tag) {
             const googleUserId = `google_${googleUser.userId}`;
+            const token = googleUser.token;
+            
             try {
-                const res = await fetch(API_BASE +'/api/photo/tag', { 
+                const res = await fetch(API_BASE + '/api/photo/tag', { 
                     method: 'POST', 
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
                     body: JSON.stringify({ imageUrl, userId: googleUserId, tag }) 
                 });
                 const data = await res.json();
                 if (data.success) {
                     alert('✅ 標籤已更新');
-                    loadMyPhotos(); // 重新載入
+                    loadMyPhotos();
                 } else {
-                    alert('更新失敗');
+                    alert('更新失敗：' + (data.error || '未知錯誤'));
                 }
             } catch (error) {
                 console.error('更新標籤錯誤:', error);
@@ -563,7 +569,7 @@
         statusDiv.innerHTML = '⏳ 上傳中...';
         
         try {
-            const res = await fetch(API_BASE +'/api/upload-web', {
+            const res = await fetch(API_BASE + '/api/upload-web', {
                 method: 'POST',
                 headers: { 'Authorization': `Bearer ${googleUser.token}` },
                 body: formData
@@ -572,14 +578,12 @@
             
             if (data.success) {
                 statusDiv.innerHTML = '✅ 上傳成功！';
-                // 重置表單
                 selectedFile = null;
                 previewContainer.style.display = 'none';
                 uploadArea.style.display = 'block';
                 captionInput.value = '';
                 fileInput.value = '';
                 uploadBtn.disabled = true;
-                // 重新載入照片列表
                 await loadMyPhotos();
                 setTimeout(() => {
                     statusDiv.innerHTML = '';
@@ -597,5 +601,6 @@
     // ========== 初始化 ==========
     loadMyPhotos();
 </script>
+
 </body>
 </html>
