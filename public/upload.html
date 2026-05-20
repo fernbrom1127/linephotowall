@@ -418,29 +418,45 @@
     
     // 執行刪除
     async function executeDelete() {
-        if (!pendingDelete.imageUrl) return;
-        const { imageUrl, refreshCallback } = pendingDelete;
-        hideConfirm();
-        
-        const googleUserId = `google_${googleUser.userId}`;
-        
-        try {
-            const res = await fetch(API_BASE +`/api/photo?imageUrl=${encodeURIComponent(imageUrl)}&userId=${encodeURIComponent(googleUserId)}`, { 
-                method: 'DELETE' 
-            });
-            const data = await res.json();
-            if (data.success) {
-                alert('✅ 照片已刪除');
-                if (refreshCallback) refreshCallback();
-            } else {
-                alert('刪除失敗：' + (data.message || '未知錯誤'));
-            }
-        } catch (error) {
-            console.error('刪除錯誤:', error);
-            alert('刪除失敗');
-        }
+    if (!pendingDelete.imageUrl) return;
+    const { imageUrl, callback } = pendingDelete;
+    hideConfirm();
+    
+    // 取得 Google 登入的 Token
+    const savedUser = localStorage.getItem('googleUser');
+    if (!savedUser) {
+        alert('請先登入 Google');
+        return;
     }
     
+    const googleUser = JSON.parse(savedUser);
+    const token = googleUser.token;
+    
+    if (!token) {
+        alert('登入已過期，請重新登入');
+        window.location.href = '/index.html';
+        return;
+    }
+    
+    try {
+        const res = await fetch(API_BASE + `/api/photo?imageUrl=${encodeURIComponent(imageUrl)}&userId=${encodeURIComponent(targetUserId)}`, {
+            method: 'DELETE',
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+        const data = await res.json();
+        if (data.success) {
+            alert('✅ 照片已刪除');
+            if (callback) callback();
+        } else {
+            alert('刪除失敗：' + (data.error || data.message || '未知錯誤'));
+        }
+    } catch(e) {
+        console.error('刪除錯誤:', e);
+        alert('刪除失敗：' + e.message);
+    }
+}
     // 設為頭像
     async function setAsAvatar(imageUrl) {
         const googleUserId = `google_${googleUser.userId}`;
