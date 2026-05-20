@@ -417,24 +417,20 @@
     }
     
     // 執行刪除
-    async function executeDelete() {
+   async function executeDelete() {
     if (!pendingDelete.imageUrl) return;
     const { imageUrl, callback } = pendingDelete;
     hideConfirm();
     
-    // 取得 Google 登入的 Token
-    const savedUser = localStorage.getItem('googleUser');
-    if (!savedUser) {
-        alert('請先登入 Google');
+    // 檢查 targetUserId
+    if (!targetUserId) {
+        alert('無法識別使用者');
         return;
     }
     
-    const googleUser = JSON.parse(savedUser);
-    const token = googleUser.token;
-    
+    const token = getAuthToken();
     if (!token) {
-        alert('登入已過期，請重新登入');
-        window.location.href = '/index.html';
+        alert('請先登入');
         return;
     }
     
