@@ -371,7 +371,22 @@ function showPhotoDetail(imgUrl, userId, time, msg) {
     modalInfo.innerHTML = `<div>👤 ${escapeHtml(displayName)}</div><div>📅 ${fullDate}</div>${msg ? `<div>💬 ${escapeHtml(msg)}</div>` : ''}`;
     photoModal.style.display = 'block';
 }
-
+function showConfirm(imageUrl, photoUserId) {
+    // 檢查是否有權限刪除（只有本人可以刪除）
+    if (targetUserId !== photoUserId) {
+        alert('您沒有權限刪除這張照片');
+        return;
+    }
+    
+    pendingDelete = { 
+        imageUrl: imageUrl, 
+        callback: () => loadPhotos() 
+    };
+    document.getElementById('confirmMessage').innerText = '確定要刪除這張照片嗎？';
+    const confirmBtn = document.getElementById('confirmDeleteBtn');
+    confirmBtn.onclick = () => executeDelete();
+    confirmOverlay.style.display = 'flex';
+}
 function showConfirm(imageUrl) {
     pendingDelete = { imageUrl: imageUrl, callback: () => loadPhotos() };
     document.getElementById('confirmMessage').innerText = '確定要刪除這張照片嗎？';
