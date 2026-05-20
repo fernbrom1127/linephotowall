@@ -1,0 +1,36 @@
+name: 更新 photos.json
+
+on:
+  schedule:
+    - cron: '0 * * * *'  # 每小時備用
+  workflow_dispatch:      # 允許手動觸發
+    inputs:
+      trigger:
+        description: '觸發原因'
+        required: false
+        type: string
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: 呼叫 API 取得照片
+        run: |
+          curl -s "https://photo.fernbrom.com/api/photos" > public/photos.json
+          echo "📸 共 $(cat public/photos.json | wc -l) 筆照片"
+          
+      - name: 提交變更
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add public/photos.json
+          if git diff --cached --quiet; then
+            echo "沒有變更，跳過提交"
+          else
+            git commit -m "自動更新照片 $(date +'%Y-%m-%d %H:%M:%S')"
+            git push
+          fi
