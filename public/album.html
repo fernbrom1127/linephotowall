@@ -344,13 +344,17 @@ function renderPhotos() {
         return;
     }
     
-    const isOwner = (googleUser && `google_${googleUser.userId}` === targetUserId);
+    const isOwner = (targetUserId === currentDisplayUserId); // 需要定義 currentDisplayUserId
+    
     let html = '<div class="user-photo-grid">';
     
     currentPhotosData.forEach(photo => {
+        const photoUserId = photo.userId;
+        const isPhotoOwner = (targetUserId === photoUserId);
+        
         html += `<div class="user-photo-card" style="position:relative;">`;
-        if (isOwner) {
-            html += `<button class="delete-btn" onclick="event.stopPropagation(); showConfirm('${photo.imageUrl}')">🗑️</button>`;
+        if (isPhotoOwner) {
+            html += `<button class="delete-btn" onclick="event.stopPropagation(); showConfirm('${photo.imageUrl}', '${photoUserId}')">🗑️</button>`;
             html += `<button class="set-avatar-btn" onclick="event.stopPropagation(); setAsAvatar('${photo.imageUrl}')">👤</button>`;
             html += `<button class="tag-btn" onclick="event.stopPropagation(); editPhotoTag('${photo.imageUrl}', '${photo.tag || ''}')">🏷️</button>`;
         }
@@ -362,8 +366,7 @@ function renderPhotos() {
     html += '</div>';
     mainContainer.innerHTML = html;
 }
-
-// ========== 照片操作 ==========
+    // ========== 照片操作 ==========
 function showPhotoDetail(imgUrl, userId, time, msg) {
     modalImg.src = imgUrl;
     const displayName = personalName.innerText;
