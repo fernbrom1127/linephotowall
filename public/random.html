@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>🎲 隨機探索 - 回憶照片牆</title>
+    <style>
+        * { margin:0; padding:0; box-sizing:border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background: #fafafa; min-height: 100vh; }
+        
+        .navbar { background: white; border-bottom: 1px solid #dbdbdb; position: sticky; top: 0; z-index: 100; padding: 8px 16px; }
+        .navbar-content { display: flex; justify-content: space-between; align-items: center; }
+        .nav-left { display: flex; gap: 12px; align-items: center; }
+        .nav-right { display: flex; gap: 12px; align-items: center; }
+        
+        .nav-icon {
+            background: none;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            padding: 8px;
+            border-radius: 50%;
+            transition: all 0.2s;
+            width: 44px;
+            height: 44px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-decoration: none;
+            color: #333;
+        }
+        .nav-icon:hover { background: #f0f0f0; transform: scale(1.05); }
+        .nav-icon.active { background: linear-gradient(135deg,#667eea 0%,#764ba2 100%); color: white; }
+        
+        .container { width: 100%; }
+        .photo-grid { column-count: 4; column-gap: 5px; padding: 5px; background: #fff; }
+        .photo-card { display: inline-block; width: 100%; margin-bottom: 5px; position: relative; cursor: pointer; background: #f0f0f0; border-radius: 8px; overflow: hidden; break-inside: avoid; }
+        .photo-card img { width: 100%; height: auto; display: block; }
+        .photo-overlay { position: absolute; bottom: 0; left: 0; right: 0; background: linear-gradient(transparent, rgba(0,0,0,0.8)); color: white; padding: 20px 10px 10px; opacity: 0; transition: opacity 0.3s; font-size: 13px; }
+        .photo-card:hover .photo-overlay { opacity: 1; }
+        
+        @media (max-width: 768px) {
+            .photo-grid { column-count: 2; }
+            .photo-overlay { display: none; }
+            .nav-icon { font-size: 20px; width: 40px; height: 40px; }
+        }
+        
+        .modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.95); z-index: 1000; }
+        .modal-content { position: relative; margin: auto; padding: 20px; width: 90%; max-width: 800px; top: 50%; transform: translateY(-50%); }
+        .modal-image { width: 100%; border-radius: 10px; }
+        .modal-info { color: white; padding: 15px; text-align: center; }
+        .close { position: absolute; top: 20px; right: 35px; color: white; font-size: 40px; cursor: pointer; }
+        
+        .loading { text-align: center; padding: 50px; color: #999; }
+        .back-to-top { position: fixed; bottom: 30px; right: 30px; background: #667eea; color: white; border: none; border-radius: 50%; width: 50px; height: 50px; font-size: 24px; cursor: pointer; box-shadow: 0 2px 10px rgba(0,0,0,0.2); display: none; z-index: 100; }
+    </style>
+</head>
+<body>
+
+<div class="navbar">
+    <div class="navbar-content">
+        <div class="nav-left">
+            <a href="upload.html" class="nav-icon" title="上傳照片">📸</a>
+            <a href="index.html" class="nav-icon" title="時間軸">🏠</a>
+            <a href="random.html" class="nav-icon active" title="隨機探索">🎲</a>
+            <a href="group.html" class="nav-icon" title="群組成員">👥</a>
+        </div>
+        <div class="nav-right">
+            <button id="googleNavBtn" class="nav-icon" onclick="handleGoogleAction()" title="Google 登入">🎯</button>
+        </div>
+    </div>
+</div>
+
+<div id="mainContainer" class="container"><div class="loading">🎲 隨機探索中...</div></div>
+
+<div id="photoModal" class="modal">
+    <span class="close">&times;</span>
+    <div class="modal-content">
+        <img class="modal-image" id="modalImage">
+        <div class="modal-info" id="modalInfo"></div>
+    </div>
+</div>
+
+<button class="back-to-top" onclick="scrollToTop()">↑</button>
+
+<script>
+const API_BASE = 'https://photo.fernbrom.com';
+const GOOGLE_CLIENT_ID = '720728907627-ops2cmqo6cj13dib4b7s15h4r5h1h0t0.apps.googleusercontent.com';
+
+let googleUser = null;
+let userNameMap = new Map();
+
+document.querySelector('.close').onclick = () => document.getElementById('photoModal').style.display = "none";
+window.onscroll = () => { document.querySelector('.back-to-top').style.display = window.scrollY > 300 ? 'block' : 'none'; };
+function scrollToTop() { window.scrollTo({ top: 0, behavior: 'smooth' }); }
+
+function formatFullDateTime(isoString) {
+    if(!isoString) return '';
+    const d = new Date(isoString);
+    return `${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日`;
+}
+
+function truncateUserId(id) {
+    if(!id) return '匿名';
+    if(id.length > 12) return id.substring(0,8)+'...';
+    return id;
+}
+
+function escapeHtml(t) {
+    if(!t) return '';
+    const div = document.createElement('div');
+    div.textContent = t;
+    return div.innerHTML;
+}
+
+function initGoogleLogin() {
+    const savedUser = localStorage.getItem('googleUser');
+    if (savedUser) {
+        try { googleUser = JSON.parse(savedUser); updateGoogleButton(); } catch(e) {}
+    }
+}
+
+function handleGoogleAction() {
+    if (googleUser) {
+        window.location.href = 'upload.html';
+    } else {
+        const redirectUri = window.location.origin + '/auth-callback.html';
+        const authUrl = 'https://accounts.google.com/o/oauth2/v2/auth?' +
+            'client_id=' + encodeURIComponent(GOOGLE_CLIENT_ID) +
+            '&redirect_uri=' + encodeURIComponent(redirectUri) +
+            '&response_type=id_token' +
+            '&scope=openid email profile' +
+            '&nonce=' + Math.random().toString(36).substring(2) +
+            '&prompt=select_account';
+        window.location.href = authUrl;
+    }
+}
+
+function updateGoogleButton() {
+    const btn = document.getElementById('googleNavBtn');
+    if (googleUser) btn.innerHTML = '📸';
+    else btn.innerHTML = '🎯';
+}
+
+function renderPhotoGrid(photos) {
+    if(!photos || photos.length === 0) return '<div class="loading">📸 暫無照片</div>';
+    let html = '<div class="photo-grid">';
+    photos.forEach(photo => {
+        const displayName = userNameMap.get(photo.userId) || truncateUserId(photo.userId);
+        const fullDate = formatFullDateTime(photo.time);
+        html += `<div class="photo-card" onclick="showPhotoDetail('${photo.imageUrl}','${photo.userId}','${photo.time}','${(photo.message||'').replace(/'/g,"\\'")}')">
+            <img src="${photo.imageUrl}" loading="lazy" onerror="this.src='https://via.placeholder.com/300'">
+            <div class="photo-overlay">
+                <div>👤 ${escapeHtml(displayName)}</div>
+                <div>📅 ${fullDate}</div>
+                ${photo.message ? `<div>💬 ${escapeHtml(photo.message.substring(0,30))}${photo.message.length>30?'…':''}</div>` : ''}
+                <div>❤️ ${photo.likes || 0}</div>
+            </div>
+        </div>`;
+    });
+    html += '</div>';
+    return html;
+}
+
+function showPhotoDetail(imgUrl, userId, time, msg) {
+    const modal = document.getElementById('photoModal');
+    const modalImg = document.getElementById('modalImage');
+    const modalInfo = document.getElementById('modalInfo');
+    modalImg.src = imgUrl;
+    const displayName = userNameMap.get(userId) || truncateUserId(userId);
+    const fullDate = formatFullDateTime(time);
+    modalInfo.innerHTML = `<div>👤 ${escapeHtml(displayName)}</div><div>📅 ${fullDate}</div>${msg ? `<div>💬 ${escapeHtml(msg)}</div>` : ''}`;
+    modal.style.display = 'block';
+}
+
+async function loadRandomPhotos() {
+    try {
+        const staticRes = await fetch('/photos.json');
+        if (staticRes.ok) {
+            let photos = await staticRes.json();
+            if (photos && photos.length > 0) {
+                for (let i = photos.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [photos[i], photos[j]] = [photos[j], photos[i]];
+                }
+                document.getElementById('mainContainer').innerHTML = renderPhotoGrid(photos);
+                return;
+            }
+        }
+    } catch(e) {}
+    
+    try {
+        const apiRes = await fetch(API_BASE + '/api/photos');
+        let photos = await apiRes.json();
+        for (let i = photos.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [photos[i], photos[j]] = [photos[j], photos[i]];
+        }
+        document.getElementById('mainContainer').innerHTML = renderPhotoGrid(photos);
+    } catch(e) {
+        document.getElementById('mainContainer').innerHTML = '<div class="loading">❌ 載入失敗</div>';
+    }
+}
+
+async function loadUsers() {
+    try {
+        const res = await fetch(API_BASE + '/api/users');
+        const users = await res.json();
+        users.forEach(u => {
+            if(u.userId && u.displayName) userNameMap.set(u.userId, u.displayName);
+        });
+    } catch(e) {}
+}
+
+document.addEventListener('DOMContentLoaded', async function() {
+    initGoogleLogin();
+    await loadUsers();
+    await loadRandomPhotos();
+});
+</script>
+</body>
+</html>
