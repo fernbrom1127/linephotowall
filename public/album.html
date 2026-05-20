@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>👤 個人相簿 - 回憶照片牆</title>
+    <style>
+        * { margin:0; padding:0; box-sizing:border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background: #fafafa; min-height: 100vh; }
+        
+        .navbar { background: white; border-bottom: 1px solid #dbdbdb; position: sticky; top: 0; z-index: 100; padding: 8px 16px; }
+        .navbar-content { display: flex; justify-content: space-between; align-items: center; }
+        .nav-left { display: flex; gap: 12px; align-items: center; }
+        .nav-right { display: flex; gap: 12px; align-items: center; }
+        
+        .nav-icon {
+            background: none;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            padding: 8px;
+            border-radius: 50%;
+            transition: all 0.2s;
+            width: 44px;
+            height: 44px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-decoration: none;
+            color: #333;
+        }
+        .nav-icon:hover { background: #f0f0f0; transform: scale(1.05); }
+        
+        .personal-nav {
+            background: white;
+            border-bottom: 1px solid #dbdbdb;
+            padding: 12px 16px;
+            position: sticky;
+            top: 60px;
+            z-index: 99;
+        }
+        .personal-nav-row1 {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            flex-wrap: wrap;
+        }
+        .back-arrow {
+            background: none;
+            border: none;
+            font-size: 28px;
+            cursor: pointer;
+            padding: 8px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .back-arrow:hover { background: #f0f0f0; }
+        .personal-avatar {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 3px solid #667eea;
+        }
+        .personal-name {
+            font-weight: bold;
+            font-size: 20px;
+            color: #333;
+        }
+        .edit-name-btn {
+            background: none;
+            border: none;
+            color: #667eea;
+            cursor: pointer;
+            font-size: 16px;
+            padding: 4px 8px;
+        }
+        .edit-name-btn:hover { text-decoration: underline; }
+        
+        .user-photo-grid {
+            column-count: 3;
+            column-gap: 4px;
+            padding: 4px;
+            background: #fafafa;
+        }
+        .user-photo-card {
+            break-inside: avoid;
+            margin-bottom: 4px;
+            position: relative;
+        }
+        .user-photo-card img {
+            width: 100%;
+            display: block;
+        }
+        
+        .delete-btn, .set-avatar-btn, .tag-btn {
+            position: absolute;
+            top: 8px;
+            background: rgba(0,0,0,0.6);
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 32px;
+            height: 32px;
+            font-size: 16px;
+            cursor: pointer;
+            z-index: 5;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .delete-btn { right: 8px; background: rgba(255,68,68,0.9); }
+        .set-avatar-btn { right: 48px; background: rgba(102,126,234,0.9); }
+        .tag-btn { right: 88px; background: rgba(0,0,0,0.6); }
+        
+        @media (max-width: 768px) {
+            .user-photo-grid { column-count: 2; }
+            .delete-btn, .set-avatar-btn, .tag-btn { width: 28px; height: 28px; font-size: 12px; }
+            .set-avatar-btn { right: 44px; }
+            .tag-btn { right: 80px; }
+            .personal-avatar { width: 50px; height: 50px; }
+            .personal-name { font-size: 16px; }
+        }
+        
+        .modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.95); z-index: 1000; }
+        .modal-content { position: relative; margin: auto; padding: 20px; width: 90%; max-width: 800px; top: 50%; transform: translateY(-50%); }
+        .modal-image { width: 100%; border-radius: 10px; }
+        .modal-info { color: white; padding: 15px; text-align: center; }
+        .close { position: absolute; top: 20px; right: 35px; color: white; font-size: 40px; cursor: pointer; }
+        
+        .loading { text-align: center; padding: 50px; color: #999; }
+        .confirm-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.5);
+            z-index: 2000;
+            display: none;
+            align-items: center;
+            justify-content: center;
+        }
+        .confirm-dialog {
+            background: white;
+            border-radius: 16px;
+            padding: 24px;
+            width: 280px;
+            text-align: center;
+        }
+        .confirm-buttons {
+            display: flex;
+            gap: 12px;
+            justify-content: center;
+            margin-top: 20px;
+        }
+        .confirm-btn {
+            padding: 8px 24px;
+            border: none;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .confirm-btn.confirm { background: #ff4444; color: white; }
+        .confirm-btn.cancel { background: #ddd; color: #333; }
+    </style>
+</head>
+<body>
+
+<div class="navbar">
+    <div class="navbar-content">
+        <div class="nav-left">
+            <button id="googleNavBtn" class="nav-icon" onclick="handleGoogleAction()" title="Google 登入">🎯</button>
+            <a href="upload.html" class="nav-icon" title="上傳照片">📸</a>
+            <a href="index.html" class="nav-icon" title="時間軸">🏠</a>
+            <a href="random.html" class="nav-icon" title="隨機探索">🎲</a>
+            <a href="group.html" class="nav-icon" title="群組成員">👥</a>
+        </div>
+        <div class="nav-right">
+        </div>
+    </div>
+</div>
+
+<div id="personalNav" class="personal-nav">
+    <div class="personal-nav-row1">
+        <button class="back-arrow" onclick="goBack()">←</button>
+        <img id="personalAvatar" class="personal-avatar" src="https://via.placeholder.com/60">
+        <span id="personalName" class="personal-name">載入中...</span>
+        <button id="editNameBtn" class="edit-name-btn" style="display:none;" onclick="editDisplayName()">✏️ 編輯名稱</button>
+    </div>
+</div>
+
+<div id="mainContainer" class="container"><div class="loading">📷 載入中...</div></div>
+
+<div id="photoModal" class="modal">
+    <span class="close">&times;</span>
+    <div class="modal-content">
+        <img class="modal-image" id="modalImage">
+        <div class="modal-info" id="modalInfo"></div>
+    </div>
+</div>
+
+<div id="confirmOverlay" class="confirm-overlay">
+    <div class="confirm-dialog">
+        <p id="confirmMessage">確定要刪除這張照片嗎？</p>
+        <div class="confirm-buttons">
+            <button class="confirm-btn cancel" onclick="hideConfirm()">取消</button>
+            <button class="confirm-btn confirm" id="confirmDeleteBtn">刪除</button>
+        </div>
+    </div>
+</div>
+
+<script>
+// ========== 設定 ==========
+const API_BASE = 'https://photo.fernbrom.com';
+const GOOGLE_CLIENT_ID = '720728907627-ops2cmqo6cj13dib4b7s15h4r5h1h0t0.apps.googleusercontent.com';
+
+// ========== 全域變數 ==========
+let googleUser = null;
+let currentUserId = null;
+let currentPhotosData = [];
+let pendingDelete = { imageUrl: null, callback: null };
+
+// 從 URL 取得 userId
+const urlParams = new URLSearchParams(window.location.search);
+const targetUserId = urlParams.get('userId');
+
+// ========== DOM 元素 ==========
+const mainContainer = document.getElementById('mainContainer');
+const personalAvatar = document.getElementById('personalAvatar');
+const personalName = document.getElementById('personalName');
+const editNameBtn = document.getElementById('editNameBtn');
+const photoModal = document.getElementById('photoModal');
+const modalImg = document.getElementById('modalImage');
+const modalInfo = document.getElementById('modalInfo');
+const confirmOverlay = document.getElementById('confirmOverlay');
+
+// ========== 輔助函數 ==========
+document.querySelector('.close').onclick = () => photoModal.style.display = "none";
+photoModal.onclick = (e) => { if(e.target === photoModal) photoModal.style.display = "none"; };
+
+function goBack() {
+    window.location.href = 'group.html';
+}
+
+function hideConfirm() {
+    confirmOverlay.style.display = 'none';
+    pendingDelete = { imageUrl: null, callback: null };
+}
+
+function formatFullDateTime(isoString) {
+    if(!isoString) return '';
+    const d = new Date(isoString);
+    return `${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日`;
+}
+
+function truncateUserId(id) {
+    if(!id) return '匿名';
+    if(id === currentUserId) return '我';
+    if(id.length > 12) return id.substring(0,8)+'...';
+    return id;
+}
+
+function escapeHtml(t) {
+    if(!t) return '';
+    const div = document.createElement('div');
+    div.textContent = t;
+    return div.innerHTML;
+}
+
+// ========== Google 登入 ==========
+function initGoogleLogin() {
+    const savedUser = localStorage.getItem('googleUser');
+    if (savedUser) {
+        try {
+            googleUser = JSON.parse(savedUser);
+            updateGoogleButton();
+        } catch(e) {}
+    }
+}
+
+function handleGoogleAction() {
+    if (googleUser) {
+        window.location.href = 'upload.html';
+    } else {
+        const redirectUri = window.location.origin + '/auth-callback.html';
+        const authUrl = 'https://accounts.google.com/o/oauth2/v2/auth?' +
+            'client_id=' + encodeURIComponent(GOOGLE_CLIENT_ID) +
+            '&redirect_uri=' + encodeURIComponent(redirectUri) +
+            '&response_type=id_token' +
+            '&scope=openid email profile' +
+            '&nonce=' + Math.random().toString(36).substring(2) +
+            '&prompt=select_account';
+        window.location.href = authUrl;
+    }
+}
+
+function updateGoogleButton() {
+    const btn = document.getElementById('googleNavBtn');
+    if (googleUser) {
+        btn.innerHTML = '📸';
+        btn.title = '上傳照片';
+    } else {
+        btn.innerHTML = '🎯';
+        btn.title = 'Google 登入';
+    }
+}
+
+// ========== 載入個人資料 ==========
+async function loadProfile() {
+    try {
+        const res = await fetch(API_BASE + `/api/user/profile/${encodeURIComponent(targetUserId)}`);
+        const profile = await res.json();
+        
+        if (profile.displayName) {
+            personalName.innerText = profile.displayName;
+        } else {
+            personalName.innerText = truncateUserId(targetUserId);
+        }
+        
+        if (profile.avatarUrl) {
+            personalAvatar.src = profile.avatarUrl;
+        }
+        
+        // 檢查是否為本人
+        const isOwner = (googleUser && `google_${googleUser.userId}` === targetUserId);
+        if (isOwner) {
+            editNameBtn.style.display = 'inline-block';
+            currentUserId = targetUserId;
+        }
+    } catch(e) {
+        personalName.innerText = truncateUserId(targetUserId);
+    }
+}
+
+// ========== 載入照片 ==========
+async function loadPhotos() {
+    mainContainer.innerHTML = '<div class="loading">📷 載入中...</div>';
+    try {
+        const res = await fetch(API_BASE + `/api/photos/user/${encodeURIComponent(targetUserId)}`);
+        currentPhotosData = await res.json();
+        renderPhotos();
+    } catch(e) {
+        mainContainer.innerHTML = '<div class="loading">❌ 載入失敗</div>';
+    }
+}
+
+function renderPhotos() {
+    if (!currentPhotosData || currentPhotosData.length === 0) {
+        mainContainer.innerHTML = '<div class="loading">📸 暫無照片</div>';
+        return;
+    }
+    
+    const isOwner = (googleUser && `google_${googleUser.userId}` === targetUserId);
+    let html = '<div class="user-photo-grid">';
+    
+    currentPhotosData.forEach(photo => {
+        html += `<div class="user-photo-card" style="position:relative;">`;
+        if (isOwner) {
+            html += `<button class="delete-btn" onclick="event.stopPropagation(); showConfirm('${photo.imageUrl}')">🗑️</button>`;
+            html += `<button class="set-avatar-btn" onclick="event.stopPropagation(); setAsAvatar('${photo.imageUrl}')">👤</button>`;
+            html += `<button class="tag-btn" onclick="event.stopPropagation(); editPhotoTag('${photo.imageUrl}', '${photo.tag || ''}')">🏷️</button>`;
+        }
+        html += `<div onclick="showPhotoDetail('${photo.imageUrl}', '${photo.userId}', '${photo.time}', '${(photo.message||'').replace(/'/g,"\\'")}')">
+                    <img src="${photo.imageUrl}" loading="lazy" onerror="this.src='https://via.placeholder.com/300'">
+                </div>
+            </div>`;
+    });
+    html += '</div>';
+    mainContainer.innerHTML = html;
+}
+
+// ========== 照片操作 ==========
+function showPhotoDetail(imgUrl, userId, time, msg) {
+    modalImg.src = imgUrl;
+    const displayName = personalName.innerText;
+    const fullDate = formatFullDateTime(time);
+    modalInfo.innerHTML = `<div>👤 ${escapeHtml(displayName)}</div><div>📅 ${fullDate}</div>${msg ? `<div>💬 ${escapeHtml(msg)}</div>` : ''}`;
+    photoModal.style.display = 'block';
+}
+
+function showConfirm(imageUrl) {
+    pendingDelete = { imageUrl: imageUrl, callback: () => loadPhotos() };
+    document.getElementById('confirmMessage').innerText = '確定要刪除這張照片嗎？';
+    const confirmBtn = document.getElementById('confirmDeleteBtn');
+    confirmBtn.onclick = () => executeDelete();
+    confirmOverlay.style.display = 'flex';
+}
+
+async function executeDelete() {
+    if (!pendingDelete.imageUrl) return;
+    const { imageUrl, callback } = pendingDelete;
+    hideConfirm();
+    
+    try {
+        const res = await fetch(API_BASE + `/api/photo?imageUrl=${encodeURIComponent(imageUrl)}&userId=${encodeURIComponent(targetUserId)}`, { method: 'DELETE' });
+        const data = await res.json();
+        if (data.success) {
+            alert('✅ 照片已刪除');
+            if (callback) callback();
+        } else {
+            alert('刪除失敗');
+        }
+    } catch(e) {
+        alert('刪除失敗');
+    }
+}
+
+async function setAsAvatar(imageUrl) {
+    try {
+        const res = await fetch(API_BASE + '/api/user/avatar', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userId: targetUserId, avatarUrl: imageUrl })
+        });
+        const data = await res.json();
+        if (data.success) {
+            alert('✅ 已設為頭像！');
+            personalAvatar.src = imageUrl;
+        } else {
+            alert('設定失敗');
+        }
+    } catch(e) {
+        alert('設定失敗');
+    }
+}
+
+async function editPhotoTag(imageUrl, currentTag) {
+    const newTag = prompt('選擇標籤：\n1. 風景\n2. 美食\n3. 人物\n\n或輸入其他文字', currentTag || '');
+    if (newTag === null) return;
+    
+    let tag = '';
+    if (newTag === '1' || newTag === '風景') tag = '風景';
+    else if (newTag === '2' || newTag === '美食') tag = '美食';
+    else if (newTag === '3' || newTag === '人物') tag = '人物';
+    else tag = newTag.trim();
+    
+    if (tag) {
+        try {
+            const res = await fetch(API_BASE + '/api/photo/tag', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ imageUrl, userId: targetUserId, tag })
+            });
+            const data = await res.json();
+            if (data.success) {
+                alert('✅ 標籤已更新');
+                loadPhotos();
+            } else {
+                alert('更新失敗');
+            }
+        } catch(e) {
+            alert('更新失敗');
+        }
+    }
+}
+
+async function editDisplayName() {
+    const newName = prompt('請輸入您希望顯示的名稱：', personalName.innerText);
+    if (newName && newName.trim()) {
+        try {
+            const res = await fetch(API_BASE + '/api/user/displayname', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ userId: targetUserId, displayName: newName.trim() })
+            });
+            const data = await res.json();
+            if (data.success) {
+                alert('✅ 名稱已更新');
+                personalName.innerText = newName.trim();
+            } else {
+                alert('更新失敗');
+            }
+        } catch(e) {
+            alert('更新失敗');
+        }
+    }
+}
+
+// ========== 啟動 ==========
+document.addEventListener('DOMContentLoaded', async function() {
+    initGoogleLogin();
+    
+    if (!targetUserId) {
+        mainContainer.innerHTML = '<div class="loading">❌ 缺少使用者 ID</div>';
+        return;
+    }
+    
+    await loadProfile();
+    await loadPhotos();
+});
+</script>
+</body>
+</html>
