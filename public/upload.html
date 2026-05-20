@@ -292,6 +292,8 @@
 </div>
 
 <script>
+    const API_BASE = 'https://photo.fernbrom.com';
+    
     // ========== 設定 ==========
     const GOOGLE_CLIENT_ID = '720728907627-ops2cmqo6cj13dib4b7s15h4r5h1h0t0.apps.googleusercontent.com';
     
@@ -423,7 +425,7 @@
         const googleUserId = `google_${googleUser.userId}`;
         
         try {
-            const res = await fetch(`/api/photo?imageUrl=${encodeURIComponent(imageUrl)}&userId=${encodeURIComponent(googleUserId)}`, { 
+            const res = await fetch(API_BASE +`/api/photo?imageUrl=${encodeURIComponent(imageUrl)}&userId=${encodeURIComponent(googleUserId)}`, { 
                 method: 'DELETE' 
             });
             const data = await res.json();
@@ -443,7 +445,7 @@
     async function setAsAvatar(imageUrl) {
         const googleUserId = `google_${googleUser.userId}`;
         try {
-            const res = await fetch('/api/user/avatar', { 
+            const res = await fetch(API_BASE +'/api/user/avatar', { 
                 method: 'POST', 
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ userId: googleUserId, avatarUrl: imageUrl }) 
@@ -476,7 +478,7 @@
         if (tag) {
             const googleUserId = `google_${googleUser.userId}`;
             try {
-                const res = await fetch('/api/photo/tag', { 
+                const res = await fetch(API_BASE +'/api/photo/tag', { 
                     method: 'POST', 
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ imageUrl, userId: googleUserId, tag }) 
@@ -549,7 +551,7 @@
         statusDiv.innerHTML = '⏳ 上傳中...';
         
         try {
-            const res = await fetch('/api/upload-web', {
+            const res = await fetch(API_BASE +'/api/upload-web', {
                 method: 'POST',
                 headers: { 'Authorization': `Bearer ${googleUser.token}` },
                 body: formData
