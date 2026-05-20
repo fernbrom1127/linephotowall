@@ -189,7 +189,7 @@ async function uploadToCloudinary(imageBuffer, retries = 3) {
             timeout: 30000,
             categorization: 'google_tagging',
             auto_tagging: 0.6,
-            moderation: 'aws_rekognition'  // 自動審核不當內容
+           
           },
           (error, uploadResult) => {
             if (error) return reject(error);
