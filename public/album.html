@@ -166,12 +166,18 @@
 </head>
 <body>
 
-<div class="nav-left">
-    <button id="lineNavBtn" class="nav-icon" onclick="showMyAlbum()" title="LINE 個人相簿">👤</button>
-    <button id="googleNavBtn" class="nav-icon" onclick="handleGoogleAction()" title="Google 登入">🎯</button>
-    <a href="index.html" class="nav-icon" title="時間軸">🏠</a>
-    <a href="random.html" class="nav-icon" title="隨機探索">🎲</a>
-    <a href="group.html" class="nav-icon" title="群組成員">👥</a>
+<div class="navbar">
+    <div class="navbar-content">
+        <div class="nav-left">
+            <button id="lineNavBtn" class="nav-icon" onclick="showMyAlbum()" title="LINE 個人相簿">👤</button>
+            <button id="googleNavBtn" class="nav-icon" onclick="handleGoogleAction()" title="Google 登入">🎯</button>
+            <a href="index.html" class="nav-icon" title="時間軸">🏠</a>
+            <a href="random.html" class="nav-icon" title="隨機探索">🎲</a>
+            <a href="group.html" class="nav-icon" title="群組成員">👥</a>
+        </div>
+        <div class="nav-right">
+        </div>
+    </div>
 </div>
 
 <div id="personalNav" class="personal-nav">
@@ -210,13 +216,16 @@ const GOOGLE_CLIENT_ID = '720728907627-ops2cmqo6cj13dib4b7s15h4r5h1h0t0.apps.goo
 
 // ========== 全域變數 ==========
 let googleUser = null;
-let currentUserId = null;
+let lineUserId = null;
 let currentPhotosData = [];
 let pendingDelete = { imageUrl: null, callback: null };
 
 // 從 URL 取得 userId
 const urlParams = new URLSearchParams(window.location.search);
 const targetUserId = urlParams.get('userId');
+
+// 從 localStorage 讀取 LINE userId
+lineUserId = localStorage.getItem('userId');
 
 // ========== DOM 元素 ==========
 const mainContainer = document.getElementById('mainContainer');
@@ -249,7 +258,7 @@ function formatFullDateTime(isoString) {
 
 function truncateUserId(id) {
     if(!id) return '匿名';
-    if(id === currentUserId) return '我';
+    if(id === lineUserId) return '我';
     if(id.length > 12) return id.substring(0,8)+'...';
     return id;
 }
@@ -259,6 +268,15 @@ function escapeHtml(t) {
     const div = document.createElement('div');
     div.textContent = t;
     return div.innerHTML;
+}
+
+// ========== LINE 個人相簿 ==========
+function showMyAlbum() {
+    if (!lineUserId) {
+        alert('請從 LINE 加入好友後，點擊個人連結使用');
+        return;
+    }
+    window.location.href = `album.html?userId=${lineUserId}`;
 }
 
 // ========== Google 登入 ==========
@@ -315,11 +333,10 @@ async function loadProfile() {
             personalAvatar.src = profile.avatarUrl;
         }
         
-        // 檢查是否為本人
-        const isOwner = (googleUser && `google_${googleUser.userId}` === targetUserId);
+        // 檢查是否為本人（LINE 或 Google）
+        const isOwner = (lineUserId === targetUserId) || (googleUser && `google_${googleUser.userId}` === targetUserId);
         if (isOwner) {
             editNameBtn.style.display = 'inline-block';
-            currentUserId = targetUserId;
         }
     } catch(e) {
         personalName.innerText = truncateUserId(targetUserId);
@@ -344,8 +361,6 @@ function renderPhotos() {
         return;
     }
     
-    const isOwner = (targetUserId === currentDisplayUserId); // 需要定義 currentDisplayUserId
-    
     let html = '<div class="user-photo-grid">';
     
     currentPhotosData.forEach(photo => {
@@ -366,7 +381,8 @@ function renderPhotos() {
     html += '</div>';
     mainContainer.innerHTML = html;
 }
-    // ========== 照片操作 ==========
+
+// ========== 照片操作 ==========
 function showPhotoDetail(imgUrl, userId, time, msg) {
     modalImg.src = imgUrl;
     const displayName = personalName.innerText;
@@ -374,6 +390,7 @@ function showPhotoDetail(imgUrl, userId, time, msg) {
     modalInfo.innerHTML = `<div>👤 ${escapeHtml(displayName)}</div><div>📅 ${fullDate}</div>${msg ? `<div>💬 ${escapeHtml(msg)}</div>` : ''}`;
     photoModal.style.display = 'block';
 }
+
 function showConfirm(imageUrl, photoUserId) {
     // 檢查是否有權限刪除（只有本人可以刪除）
     if (targetUserId !== photoUserId) {
@@ -390,24 +407,14 @@ function showConfirm(imageUrl, photoUserId) {
     confirmBtn.onclick = () => executeDelete();
     confirmOverlay.style.display = 'flex';
 }
-function showConfirm(imageUrl) {
-    pendingDelete = { imageUrl: imageUrl, callback: () => loadPhotos() };
-    document.getElementById('confirmMessage').innerText = '確定要刪除這張照片嗎？';
-    const confirmBtn = document.getElementById('confirmDeleteBtn');
-    confirmBtn.onclick = () => executeDelete();
-    confirmOverlay.style.display = 'flex';
-}
 
 async function executeDelete() {
     if (!pendingDelete.imageUrl) return;
     const { imageUrl, callback } = pendingDelete;
     hideConfirm();
     
-    // 使用 targetUserId（已經從 URL 取得）
-    const userId = targetUserId;
-    
     try {
-        const res = await fetch(API_BASE + `/api/photo?imageUrl=${encodeURIComponent(imageUrl)}&userId=${encodeURIComponent(userId)}`, { 
+        const res = await fetch(API_BASE + `/api/photo?imageUrl=${encodeURIComponent(imageUrl)}&userId=${encodeURIComponent(targetUserId)}`, { 
             method: 'DELETE' 
         });
         const data = await res.json();
@@ -422,6 +429,7 @@ async function executeDelete() {
         alert('刪除失敗');
     }
 }
+
 async function setAsAvatar(imageUrl) {
     try {
         const res = await fetch(API_BASE + '/api/user/avatar', {
