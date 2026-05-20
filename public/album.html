@@ -385,20 +385,25 @@ async function executeDelete() {
     const { imageUrl, callback } = pendingDelete;
     hideConfirm();
     
+    // 使用 targetUserId（已經從 URL 取得）
+    const userId = targetUserId;
+    
     try {
-        const res = await fetch(API_BASE + `/api/photo?imageUrl=${encodeURIComponent(imageUrl)}&userId=${encodeURIComponent(targetUserId)}`, { method: 'DELETE' });
+        const res = await fetch(API_BASE + `/api/photo?imageUrl=${encodeURIComponent(imageUrl)}&userId=${encodeURIComponent(userId)}`, { 
+            method: 'DELETE' 
+        });
         const data = await res.json();
         if (data.success) {
             alert('✅ 照片已刪除');
             if (callback) callback();
         } else {
-            alert('刪除失敗');
+            alert('刪除失敗：' + (data.message || '未知錯誤'));
         }
     } catch(e) {
+        console.error('刪除錯誤:', e);
         alert('刪除失敗');
     }
 }
-
 async function setAsAvatar(imageUrl) {
     try {
         const res = await fetch(API_BASE + '/api/user/avatar', {
