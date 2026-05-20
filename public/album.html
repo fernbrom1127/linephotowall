@@ -294,10 +294,23 @@ function getAuthToken() {
 }
 
 // ========== 檢查是否為本人 ==========
+// ========== 檢查是否為本人（支援 Google 和 LINE）==========
 function isOwner() {
-    const myId = getCurrentUserId();
-    if (!myId) return false;
-    return myId === targetUserId;
+    // 檢查 Google 使用者
+    const myGoogleId = getCurrentUserId();
+    if (myGoogleId && myGoogleId === targetUserId) {
+        console.log('🔐 是本人（Google 使用者），允許操作');
+        return true;
+    }
+    
+    // 檢查 LINE 使用者
+    const myLineId = lineUserId;
+    if (myLineId && myLineId === targetUserId) {
+        console.log('🔐 是本人（LINE 使用者），顯示按鈕，但操作需後端驗證');
+        return true;  // ← 改回 true，讓 LINE 使用者看到按鈕
+    }
+    
+    return false;
 }
 
 // ========== LINE 個人相簿 ==========
