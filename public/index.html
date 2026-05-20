@@ -217,9 +217,38 @@ function formatFullDateTime(isoString) { if(!isoString) return ''; const d=new D
 function truncateUserId(id) { if(!id) return '匿名'; if(id===currentUserId) return '我'; if(id.length>12) return id.substring(0,8)+'...'; return id; }
 function escapeHtml(t){ if(!t) return ''; const div=document.createElement('div'); div.textContent=t; return div.innerHTML; }
 
-// ========== Google 登入邏輯（彈窗版本）==========
+// ========== ★★★ 共用函數：優先讀取靜態 JSON ★★★ ==========
+async function loadPhotosFromStaticOrAPI() {
+    // 方法1：優先讀取靜態 photos.json（瞬間載入）
+    try {
+        const staticRes = await fetch('/photos.json');
+        if (staticRes.ok) {
+            const photos = await staticRes.json();
+            if (photos && photos.length > 0) {
+                console.log('✅ 從靜態 photos.json 載入', photos.length, '張照片');
+                return photos;
+            }
+        }
+    } catch (e) {
+        console.log('⚠️ 靜態檔案載入失敗:', e.message);
+    }
+    
+    // 方法2：靜態檔案失敗，改用 API
+    try {
+        const apiRes = await fetch('/api/photos');
+        if (apiRes.ok) {
+            const photos = await apiRes.json();
+            console.log('✅ 從 API 載入', photos.length, '張照片');
+            return photos;
+        }
+    } catch (e) {
+        console.error('❌ API 載入失敗:', e.message);
+    }
+    
+    return [];
+}
 
-// 初始化：從 localStorage 讀取已登入狀態
+// ========== Google 登入邏輯 ==========
 function initGoogleLogin() {
     const savedUser = localStorage.getItem('googleUser');
     if (savedUser) {
@@ -229,14 +258,12 @@ function initGoogleLogin() {
         } catch(e) { console.error(e); }
     }
     
-    // 檢查是否有 pending 的 token（從 callback 頁面跳回來的備用方案）
     const pendingToken = localStorage.getItem('pendingGoogleToken');
     if (pendingToken) {
         localStorage.removeItem('pendingGoogleToken');
         handleGoogleCredential(pendingToken);
     }
     
-    // 監聽彈窗傳來的訊息
     window.addEventListener('message', function(event) {
         if (event.origin !== window.location.origin) return;
         if (event.data && event.data.type === 'google_login_success' && event.data.credential) {
@@ -245,13 +272,10 @@ function initGoogleLogin() {
     });
 }
 
-// 點擊 🎯：開啟 Google 登入彈窗
-// 改用跳轉模式，在同一個視窗進行
 function handleGoogleAction() {
     if (googleUser) {
         goToUploadPage();
     } else {
-        // 直接跳轉到 Google 登入，不開新視窗
         const redirectUri = window.location.origin + '/auth-callback.html';
         const authUrl = 'https://accounts.google.com/o/oauth2/v2/auth?' +
             'client_id=' + encodeURIComponent(GOOGLE_CLIENT_ID) +
@@ -265,38 +289,6 @@ function handleGoogleAction() {
     }
 }
 
-// 開啟 Google 登入彈窗
-function openGoogleLoginPopup() {
-    // 建立 OAuth URL
-    const redirectUri = window.location.origin + '/auth-callback.html';
-    const authUrl = 'https://accounts.google.com/o/oauth2/v2/auth?' +
-        'client_id=' + encodeURIComponent(GOOGLE_CLIENT_ID) +
-        '&redirect_uri=' + encodeURIComponent(redirectUri) +
-        '&response_type=id_token' +
-        '&scope=openid email profile' +
-        '&nonce=' + Math.random().toString(36).substring(2) +
-        '&prompt=select_account';
-    
-    // 計算彈窗位置（置中）
-    const width = 500;
-    const height = 600;
-    const left = (screen.width - width) / 2;
-    const top = (screen.height - height) / 2;
-    
-    // 開啟彈窗
-    const popup = window.open(authUrl, 'GoogleLogin', 
-        `width=${width},height=${height},left=${left},top=${top},toolbar=no,menubar=no`);
-    
-    if (!popup) {
-        alert('彈窗被瀏覽器阻擋，請允許彈窗後再試一次');
-    } else {
-        const btn = document.getElementById('googleNavBtn');
-        btn.style.opacity = '0.7';
-        setTimeout(() => { btn.style.opacity = '1'; }, 5000);
-    }
-}
-
-// 處理 Google 憑證
 async function handleGoogleCredential(credential) {
     const btn = document.getElementById('googleNavBtn');
     const originalHtml = btn.innerHTML;
@@ -333,7 +325,6 @@ async function handleGoogleCredential(credential) {
     }
 }
 
-// 更新按鈕：未登入顯示 🎯，已登入顯示 📸
 function updateGoogleButtonForLoggedIn() {
     const btn = document.getElementById('googleNavBtn');
     if (!btn) return;
@@ -349,7 +340,6 @@ function updateGoogleButtonForLoggedIn() {
     }
 }
 
-// 跳轉到上傳頁面
 function goToUploadPage() {
     if (!googleUser) {
         alert('請先點擊 🎯 登入 Google');
@@ -378,14 +368,13 @@ function renderPhotoGrid(photos) {
     html += '</div>';
     return html;
 }
+
 // ========== 首頁按鈕（點擊/長按）==========
 let homeLongPressTimer = null;
 let homeLongPressTriggered = false;
 let homeButton = null;
 
-// 處理首頁按鈕點擊
 function handleHomeClick() {
-    // 如果已經觸發長按，就不要執行點擊
     if (homeLongPressTriggered) {
         homeLongPressTriggered = false;
         return;
@@ -397,7 +386,6 @@ function handleHomeClick() {
     }
     
     const btn = document.getElementById('homeButton');
-    // 如果目前是 🎲（隨機模式），點擊恢復成 🏠 並執行首頁
     if (btn && btn.innerHTML === '🎲') {
         btn.innerHTML = '🏠';
         btn.title = '點擊：首頁 / 長按：隨機';
@@ -408,11 +396,9 @@ function handleHomeClick() {
     showTimeline();
 }
 
-// 開始長按計時
 function startHomeLongPress() {
     const btn = document.getElementById('homeButton');
     homeLongPressTimer = setTimeout(() => {
-        // 長按觸發！
         homeLongPressTriggered = true;
         
         if (btn) {
@@ -421,24 +407,20 @@ function startHomeLongPress() {
             if (navigator.vibrate) navigator.vibrate(50);
         }
         
-        // 執行隨機模式
         showRandom();
         
         homeLongPressTimer = null;
         
-        // 重置標記
         setTimeout(() => {
             homeLongPressTriggered = false;
         }, 500);
     }, 300);
 }
 
-// 取消長按計時（如果提前放開且還沒觸發）
 function cancelHomeLongPress() {
     if (homeLongPressTimer) {
         clearTimeout(homeLongPressTimer);
         homeLongPressTimer = null;
-        // 注意：不恢復圖示，因為還沒觸發
     }
 }
 
@@ -452,36 +434,68 @@ function hideMainNavbar() { mainNavbar.style.display = 'none'; }
 function showMemberAvatars() { memberContainer.style.display = 'flex'; }
 function hideMemberAvatars() { memberContainer.style.display = 'none'; }
 
+// ========== ★★★ 修改後的 showTimeline ★★★ ==========
 async function showTimeline() {
     currentMode = 'timeline';
     setNavToDefault();
     hideMemberAvatars();
     mainContainer.innerHTML = '<div class="loading">📷 載入中...</div>';
+    
     try {
+        // 取得使用者名稱（需要 API）
         const users = await (await fetch('/api/users')).json();
         userNameMap.clear();
         users.forEach(u => { if(u.userId && u.displayName) userNameMap.set(u.userId, u.displayName); });
-        let photos = await (await fetch('/api/photos')).json();
-        photos.sort((a,b) => new Date(b.time) - new Date(a.time));
+        
+        // 載入照片（優先靜態 JSON）
+        let photos = await loadPhotosFromStaticOrAPI();
+        photos.sort((a, b) => new Date(b.time) - new Date(a.time));
         mainContainer.innerHTML = renderPhotoGrid(photos);
-    } catch(e) { mainContainer.innerHTML = '<div class="loading">❌ 載入失敗</div>'; }
+        
+        // 背景悄悄更新最新資料（3秒後，不影響使用者體驗）
+        setTimeout(async () => {
+            try {
+                const freshRes = await fetch('/api/photos');
+                const freshPhotos = await freshRes.json();
+                if (freshPhotos.length > 0) {
+                    freshPhotos.sort((a, b) => new Date(b.time) - new Date(a.time));
+                    mainContainer.innerHTML = renderPhotoGrid(freshPhotos);
+                    console.log('🔄 已更新為最新照片');
+                }
+            } catch(e) {}
+        }, 3000);
+        
+    } catch(e) { 
+        console.error(e);
+        mainContainer.innerHTML = '<div class="loading">❌ 載入失敗</div>'; 
+    }
 }
 
+// ========== ★★★ 修改後的 showRandom ★★★ ==========
 async function showRandom() {
     currentMode = 'random';
     setNavToDefault();
     hideMemberAvatars();
     mainContainer.innerHTML = '<div class="loading">🎲 隨機探索中...</div>';
+    
     try {
         const users = await (await fetch('/api/users')).json();
         userNameMap.clear();
         users.forEach(u => { if(u.userId && u.displayName) userNameMap.set(u.userId, u.displayName); });
-        let photos = await (await fetch('/api/photos')).json();
-        for (let i = photos.length - 1; i > 0; i--) { const j = Math.floor(Math.random()*(i+1)); [photos[i], photos[j]] = [photos[j], photos[i]]; }
+        
+        let photos = await loadPhotosFromStaticOrAPI();
+        for (let i = photos.length - 1; i > 0; i--) { 
+            const j = Math.floor(Math.random() * (i + 1)); 
+            [photos[i], photos[j]] = [photos[j], photos[i]]; 
+        }
         mainContainer.innerHTML = renderPhotoGrid(photos);
-    } catch(e) { mainContainer.innerHTML = '<div class="loading">❌ 載入失敗</div>'; }
+    } catch(e) { 
+        console.error(e);
+        mainContainer.innerHTML = '<div class="loading">❌ 載入失敗</div>'; 
+    }
 }
 
+// ========== ★★★ 修改後的 showGroup ★★★ ==========
 async function showGroup() {
     currentMode = 'group';
     setNavToDefault();
@@ -506,18 +520,26 @@ async function loadMemberAvatars() {
     } catch(e) { console.error(e); }
 }
 
+// ========== ★★★ 修改後的 loadGroupPhotos ★★★ ==========
 async function loadGroupPhotos() {
     mainContainer.innerHTML = '<div class="loading">🎲 載入群組照片中...</div>';
     try {
-        let photos = await (await fetch('/api/photos')).json();
-        for (let i = photos.length - 1; i > 0; i--) { const j = Math.floor(Math.random()*(i+1)); [photos[i], photos[j]] = [photos[j], photos[i]]; }
+        let photos = await loadPhotosFromStaticOrAPI();
+        for (let i = photos.length - 1; i > 0; i--) { 
+            const j = Math.floor(Math.random() * (i + 1)); 
+            [photos[i], photos[j]] = [photos[j], photos[i]]; 
+        }
         const users = await (await fetch('/api/users')).json();
         userNameMap.clear();
         users.forEach(u => { if(u.userId && u.displayName) userNameMap.set(u.userId, u.displayName); });
         mainContainer.innerHTML = renderPhotoGrid(photos);
-    } catch(e) { mainContainer.innerHTML = '<div class="loading">❌ 載入失敗</div>'; }
+    } catch(e) { 
+        console.error(e);
+        mainContainer.innerHTML = '<div class="loading">❌ 載入失敗</div>'; 
+    }
 }
 
+// ========== 個人相簿功能（保持不變） ==========
 async function showMyAlbum() {
     if(!currentUserId) { 
         alert('請從 LINE 加入好友後，點擊個人連結使用'); 
@@ -646,9 +668,7 @@ async function executeDelete() {
     } catch(e) { alert('刪除失敗'); }
 }
 
-
 // ========== 啟動 ==========
-// 等待 DOM 完全載入後再初始化
 document.addEventListener('DOMContentLoaded', function() {
     homeButton = document.getElementById('homeButton');
     initGoogleLogin();
