@@ -949,22 +949,56 @@ app.post('/api/messages/like', async (req, res) => {
   }
 });
 
-app.delete('/api/messages/:messageId', async (req, res) => {
-  if (!googleSheetReady || !messagesSheet) return res.status(503).json({ error: '服務未就緒' });
+// ========== 刪除照片 API（含權限驗證） ==========
+app.delete('/api/photo', async (req, res) => {
+  if (!googleSheetReady || !photosSheet) return res.status(503).json({ success: false });
   try {
-    const messageId = req.params.messageId;
-    const rows = await messagesSheet.getRows();
-    const targetRow = rows.find(row => row.get('留言ID') == messageId);
+    const { imageUrl, userId } = req.query;
+    if (!userId || !imageUrl) return res.status(400).json({ success: false, error: '缺少必要參數' });
     
-    if (!targetRow) return res.status(404).json({ error: '留言不存在' });
+    // 驗證請求者身份
+    const authHeader = req.headers.authorization;
+    if (!authHeader) {
+      return res.status(401).json({ success: false, error: '未提供憑證' });
+    }
     
+    const token = authHeader.split(' ')[1];
+    let requestUserId = null;
+    
+    try {
+      const ticket = await googleClient.verifyIdToken({
+        idToken: token,
+        audience: process.env.GOOGLE_CLIENT_ID,
+      });
+      const payload = ticket.getPayload();
+      requestUserId = `google_${payload.sub}`;
+    } catch (e) {
+      return res.status(401).json({ success: false, error: '無效的憑證，請重新登入' });
+    }
+    
+    // 只能刪除自己的照片
+    if (requestUserId !== userId) {
+      return res.status(403).json({ success: false, error: '您沒有權限刪除別人的照片' });
+    }
+    
+    // 執行刪除
+    const rows = await photosSheet.getRows();
+    let targetRow = null;
+    for (const row of rows) {
+      if (row.get('圖片URL') === imageUrl && row.get('使用者ID') === userId) {
+        targetRow = row;
+        break;
+      }
+    }
+    if (!targetRow) {
+      return res.status(404).json({ success: false, message: '找不到該筆照片' });
+    }
     await targetRow.delete();
     res.json({ success: true });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
+  } catch (error) { 
+    res.status(500).json({ success: false, error: error.message }); 
   }
 });
-
 app.post('/api/messages/reply', async (req, res) => {
   if (!googleSheetReady || !messagesSheet) return res.status(503).json({ error: '服務未就緒' });
   try {
