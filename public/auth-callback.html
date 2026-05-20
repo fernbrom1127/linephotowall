@@ -30,8 +30,6 @@
         @keyframes spin {
             to { transform: rotate(360deg); }
         }
-        .success { color: #4ade80; }
-        .error { color: #f87171; }
     </style>
 </head>
 <body>
@@ -39,22 +37,25 @@
     <div class="spinner"></div>
     <p id="message">登入驗證中...</p>
 </div>
-// auth-callback.html
 <script>
 // 從 URL 解析 id_token
 const hashParams = new URLSearchParams(window.location.hash.substring(1));
 const credential = hashParams.get('id_token');
 
+console.log('🔍 auth-callback.html 被載入');
+console.log('📍 hash:', window.location.hash);
+console.log('🔑 credential:', credential ? '有取得' : '無');
+
 if (credential) {
     // 儲存到 localStorage
     localStorage.setItem('pendingGoogleToken', credential);
-    // 導回首頁
-    window.location.href = '/photowall';
+    console.log('✅ 已儲存 pendingGoogleToken');
+    // ★★★ 修改這裡：改成導向根目錄 ★★★
+    window.location.href = '/';
 } else {
-    // 登入失敗或取消，也導回首頁
-    window.location.href = '/photowall';
+    console.log('❌ 未取得 credential');
+    window.location.href = '/';
 }
 </script>
-
 </body>
 </html>
