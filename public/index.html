@@ -160,13 +160,15 @@ function handleGoogleAction() {
 
 async function handleGoogleCredential(credential) {
     const btn = document.getElementById('googleNavBtn');
+    const originalHtml = btn.innerHTML;
     btn.innerHTML = '⏳';
+    btn.style.opacity = '1';
     
     try {
         const res = await fetch(API_BASE + '/api/auth/google', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ credential })
+            body: JSON.stringify({ credential: credential })
         });
         const data = await res.json();
         
@@ -175,21 +177,23 @@ async function handleGoogleCredential(credential) {
                 userId: data.userId,
                 displayName: data.displayName,
                 avatarUrl: data.avatarUrl,
+                email: data.email,
                 token: credential
             };
             localStorage.setItem('googleUser', JSON.stringify(googleUser));
-            updateGoogleButton();
-            alert(`✅ 歡迎，${data.displayName || 'Google 用戶'}！\n\n點擊 📸 上傳照片`);
+            
+            // ★★★ 直接重新整理頁面，確保按鈕狀態正確 ★★★
+            window.location.reload();
         } else {
             alert('登入失敗：' + (data.error || '未知錯誤'));
+            btn.innerHTML = originalHtml;
         }
     } catch (error) {
         console.error('Google 登入錯誤:', error);
         alert('登入失敗，請稍後再試');
+        btn.innerHTML = originalHtml;
     }
-    btn.innerHTML = '🎯';
 }
-
 function updateGoogleButton() {
     const btn = document.getElementById('googleNavBtn');
     if (googleUser) {
