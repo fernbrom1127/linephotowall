@@ -14,7 +14,31 @@ const multer = require('multer');
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } }); // 限制 10MB
 const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 const app = express();
-
+// 在檔案開頭，其他 middleware 之前加入
+app.use((req, res, next) => {
+    // 允許來自 Static Site 的請求
+    const allowedOrigins = [
+        'https://newlinephotowall.onrender.com',
+        'https://photo.fernbrom.com',
+        'http://localhost:3000'  // 本地開發用
+    ];
+    
+    const origin = req.headers.origin;
+    if (allowedOrigins.includes(origin)) {
+        res.setHeader('Access-Control-Allow-Origin', origin);
+    }
+    
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+    
+    // 處理 preflight 請求
+    if (req.method === 'OPTIONS') {
+        return res.sendStatus(200);
+    }
+    
+    next();
+});
 // ========== 1. 基本安全設定 ==========
 
 app.use(helmet({ contentSecurityPolicy: false }));
