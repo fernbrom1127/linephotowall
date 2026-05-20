@@ -353,7 +353,7 @@
         try {
             // 使用 google_ 前綴的 userId 來查詢
             const googleUserId = `google_${googleUser.userId}`;
-            const res = await fetch(`/api/photos/user/${encodeURIComponent(googleUserId)}`);
+            const res = await fetch(API_BASE +`/api/photos/user/${encodeURIComponent(googleUserId)}`);
             myPhotos = await res.json();
             renderMyPhotos();
         } catch (error) {
