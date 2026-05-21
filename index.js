@@ -197,7 +197,6 @@ async function initGoogleSheets() {
   }
 }
 
-// ========== Cloudinary 上傳圖片 ==========
 async function uploadToCloudinary(imageBuffer, retries = 3) {
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {
@@ -206,8 +205,9 @@ async function uploadToCloudinary(imageBuffer, retries = 3) {
           { 
             folder: 'linebot_photos', 
             timeout: 30000,
-            categorization: 'google_tagging',
-            auto_tagging: 0.6,
+            // 暫時關閉 AI 標籤（額度已用完）
+            // categorization: 'google_tagging',
+            // auto_tagging: 0.6,
           },
           (error, uploadResult) => {
             if (error) return reject(error);
