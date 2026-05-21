@@ -11,42 +11,9 @@ const cloudinary = require('cloudinary').v2;
 const { OAuth2Client } = require('google-auth-library');
 const multer = require('multer');
 
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } }); // 限制 10MB
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 const app = express();
-
-// ========== GitHub Actions 觸發函數 ==========
-async function triggerGitHubAction() {
-  try {
-    const githubToken = process.env.GH_PAT_TOKEN;
-    if (!githubToken) {
-      console.log('⚠️ 未設定 GH_PAT_TOKEN，跳過觸發 GitHub Actions');
-      return;
-    }
-    
-    const repo = 'fernbrom1127/linephotowall';
-    const workflowId = 'update-photos-json.yml';
-    
-    await axios.post(
-      `https://api.github.com/repos/${repo}/actions/workflows/${workflowId}/dispatches`,
-      {
-        ref: 'main',
-        inputs: {
-          trigger: 'new_upload'
-        }
-      },
-      {
-        headers: {
-          'Authorization': `Bearer ${githubToken}`,
-          'Accept': 'application/vnd.github.v3+json'
-        }
-      }
-    );
-    console.log('✅ 已觸發 GitHub Actions 更新 photos.json');
-  } catch (error) {
-    console.error('❌ 觸發 GitHub Actions 失敗:', error.response?.data || error.message);
-  }
-}
 
 // ========== CORS 設定 ==========
 app.use((req, res, next) => {
@@ -334,6 +301,50 @@ setInterval(() => {
   }
 }, 30000);
 
+// ========== 即時更新 photos.json 到 GitHub ==========
+async function updatePhotosJson() {
+  try {
+    const githubToken = process.env.GH_PAT_TOKEN;
+    if (!githubToken) {
+      console.log('⚠️ 未設定 GH_PAT_TOKEN，跳過更新 photos.json');
+      return;
+    }
+    
+    const baseUrl = `https://${process.env.RENDER_EXTERNAL_HOSTNAME || 'photo.fernbrom.com'}`;
+    const res = await axios.get(`${baseUrl}/api/photos`);
+    const photos = res.data;
+    
+    console.log(`📸 準備更新 photos.json，共 ${photos.length} 張照片`);
+    
+    const jsonContent = JSON.stringify(photos);
+    const content = Buffer.from(jsonContent).toString('base64');
+    
+    let sha = '';
+    try {
+      const fileInfo = await axios.get(
+        'https://api.github.com/repos/fernbrom1127/linephotowall/contents/public/photos.json',
+        { headers: { 'Authorization': `Bearer ${githubToken}` } }
+      );
+      sha = fileInfo.data.sha;
+    } catch (e) {
+      console.log('📝 photos.json 不存在，將建立新檔案');
+    }
+    
+    await axios.put(
+      'https://api.github.com/repos/fernbrom1127/linephotowall/contents/public/photos.json',
+      {
+        message: `📸 即時更新照片牆 (${new Date().toLocaleString()})`,
+        content: content,
+        sha: sha
+      },
+      { headers: { 'Authorization': `Bearer ${githubToken}` } }
+    );
+    console.log('✅ photos.json 已即時更新到 GitHub');
+  } catch (error) {
+    console.error('❌ 更新 photos.json 失敗:', error.response?.data || error.message);
+  }
+}
+
 // ========== 路由 ==========
 app.get('/', (req, res) => res.redirect('/photowall'));
 app.get('/health', (req, res) => res.status(200).send('OK'));
@@ -382,8 +393,7 @@ app.post('/webhook', webhookLimiter, express.json(), verifyLineSignature, async 
           await savePhotoToSheet(userId, uploadResult, '');
           pendingCaption[userId] = { imageUrl: uploadResult.secure_url, timestamp: Date.now() };
           
-          // ★★★ 觸發 GitHub Actions 更新 photos.json ★★★
-          triggerGitHubAction().catch(e => console.error('觸發失敗:', e.message));
+          updatePhotosJson().catch(e => console.error('更新 JSON 失敗:', e.message));
           
           await replyToUser(replyToken, 
             `📸 照片已儲存！\n\n` +
@@ -416,51 +426,7 @@ app.post('/webhook', webhookLimiter, express.json(), verifyLineSignature, async 
     }
   }
 });
-// ========== 即時更新 photos.json 到 GitHub ==========
-async function updatePhotosJson() {
-    try {
-        const githubToken = process.env.GH_PAT_TOKEN;
-        if (!githubToken) {
-            console.log('⚠️ 未設定 GH_PAT_TOKEN，跳過更新 photos.json');
-            return;
-        }
-        
-        // 從 API 取得最新照片
-        const baseUrl = `https://${process.env.RENDER_EXTERNAL_HOSTNAME || 'photo.fernbrom.com'}`;
-        const res = await axios.get(`${baseUrl}/api/photos`);
-        const photos = res.data;
-        
-        // 轉成 JSON 字串（壓縮格式）
-        const jsonContent = JSON.stringify(photos);
-        const content = Buffer.from(jsonContent).toString('base64');
-        
-        // 獲取當前 photos.json 的 SHA
-        let sha = '';
-        try {
-            const fileInfo = await axios.get(
-                'https://api.github.com/repos/fernbrom1127/linephotowall/contents/public/photos.json',
-                { headers: { 'Authorization': `Bearer ${githubToken}` } }
-            );
-            sha = fileInfo.data.sha;
-        } catch (e) {
-            console.log('📝 photos.json 不存在，將建立新檔案');
-        }
-        
-        // 更新或建立檔案
-        await axios.put(
-            'https://api.github.com/repos/fernbrom1127/linephotowall/contents/public/photos.json',
-            {
-                message: `📸 自動更新照片牆 (${new Date().toLocaleString()})`,
-                content: content,
-                sha: sha
-            },
-            { headers: { 'Authorization': `Bearer ${githubToken}` } }
-        );
-        console.log('✅ photos.json 已即時更新到 GitHub');
-    } catch (error) {
-        console.error('❌ 更新 photos.json 失敗:', error.response?.data || error.message);
-    }
-}
+
 // ========== 網頁上傳照片接口 ==========
 app.post('/api/upload-web', upload.single('photo'), async (req, res) => {
   try {
@@ -482,9 +448,8 @@ app.post('/api/upload-web', upload.single('photo'), async (req, res) => {
     if (!uploadResult) throw new Error('Cloudinary 上傳失敗');
 
     await savePhotoToSheet(`google_${googleUserId}`, uploadResult, caption);
-
-    // ★★★ 觸發 GitHub Actions 更新 photos.json ★★★
-    triggerGitHubAction().catch(e => console.error('觸發失敗:', e.message));
+    
+    updatePhotosJson().catch(e => console.error('更新 JSON 失敗:', e.message));
 
     res.json({ success: true, imageUrl: uploadResult.secure_url });
   } catch (error) {
@@ -519,7 +484,10 @@ app.get('/api/photos', async (req, res) => {
     }
     photos.reverse();
     res.json(photos);
-  } catch (error) { res.status(500).json({ error: error.message }); }
+  } catch (error) { 
+    console.error('API 錯誤:', error);
+    res.status(500).json({ error: error.message }); 
+  }
 });
 
 app.get('/api/photos/user/:userId', async (req, res) => {
@@ -548,7 +516,10 @@ app.get('/api/photos/user/:userId', async (req, res) => {
     }
     photos.sort((a,b) => new Date(b.time) - new Date(a.time));
     res.json(photos);
-  } catch (error) { res.status(500).json({ error: error.message }); }
+  } catch (error) { 
+    console.error('API 錯誤:', error);
+    res.status(500).json({ error: error.message }); 
+  }
 });
 
 app.get('/api/photos/tag/:tag', async (req, res) => {
@@ -576,6 +547,7 @@ app.get('/api/photos/tag/:tag', async (req, res) => {
     photos.reverse();
     res.json(photos);
   } catch (error) {
+    console.error('API 錯誤:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -603,7 +575,10 @@ app.get('/api/photos/date/:yearMonth', async (req, res) => {
     }
     photos.reverse();
     res.json(photos);
-  } catch (error) { res.status(500).json({ error: error.message }); }
+  } catch (error) { 
+    console.error('API 錯誤:', error);
+    res.status(500).json({ error: error.message }); 
+  }
 });
 
 app.post('/api/photo/tag', async (req, res) => {
@@ -619,7 +594,10 @@ app.post('/api/photo/tag', async (req, res) => {
       }
     }
     res.json({ success: true });
-  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+  } catch (error) { 
+    console.error('API 錯誤:', error);
+    res.status(500).json({ success: false, error: error.message }); 
+  }
 });
 
 app.post('/api/photo/like', async (req, res) => {
@@ -702,7 +680,10 @@ app.get('/api/users', async (req, res) => {
     });
     users.sort((a,b) => b.photoCount - a.photoCount);
     res.json(users);
-  } catch (error) { res.status(500).json({ error: error.message }); }
+  } catch (error) { 
+    console.error('API 錯誤:', error);
+    res.status(500).json({ error: error.message }); 
+  }
 });
 
 app.post('/api/user/displayname', async (req, res) => {
@@ -725,7 +706,10 @@ app.post('/api/user/displayname', async (req, res) => {
       });
     }
     res.json({ success: true });
-  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+  } catch (error) { 
+    console.error('API 錯誤:', error);
+    res.status(500).json({ success: false, error: error.message }); 
+  }
 });
 
 app.post('/api/user/avatar', async (req, res) => {
@@ -748,7 +732,10 @@ app.post('/api/user/avatar', async (req, res) => {
       });
     }
     res.json({ success: true });
-  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+  } catch (error) { 
+    console.error('API 錯誤:', error);
+    res.status(500).json({ success: false, error: error.message }); 
+  }
 });
 
 // ========== 刪除照片 API（含權限驗證） ==========
@@ -758,7 +745,6 @@ app.delete('/api/photo', async (req, res) => {
     const { imageUrl, userId } = req.query;
     if (!userId || !imageUrl) return res.status(400).json({ success: false, error: '缺少必要參數' });
     
-    // ========== 驗證請求者身份 ==========
     const authHeader = req.headers.authorization;
     if (!authHeader) {
       return res.status(401).json({ success: false, error: '未提供憑證' });
@@ -780,13 +766,11 @@ app.delete('/api/photo', async (req, res) => {
       return res.status(401).json({ success: false, error: '無效的憑證，請重新登入' });
     }
     
-    // ========== 只能刪除自己的照片 ==========
     if (requestUserId !== userId) {
       console.error(`❌ 權限不足: ${requestUserId} 試圖刪除 ${userId} 的照片`);
       return res.status(403).json({ success: false, error: '您沒有權限刪除別人的照片' });
     }
     
-    // ========== 執行刪除 ==========
     const rows = await photosSheet.getRows();
     let targetRow = null;
     for (const row of rows) {
@@ -835,6 +819,7 @@ app.get('/api/user/profile/:userId', async (req, res) => {
       fb: userRow.get('FB帳號') || ''
     });
   } catch (error) {
+    console.error('API 錯誤:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -867,6 +852,7 @@ app.post('/api/user/profile', async (req, res) => {
     }
     res.json({ success: true });
   } catch (error) {
+    console.error('API 錯誤:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -913,6 +899,7 @@ app.get('/api/messages/:userId', async (req, res) => {
     messages.reverse();
     res.json(messages);
   } catch (error) {
+    console.error('API 錯誤:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -968,6 +955,7 @@ app.post('/api/messages', async (req, res) => {
     
     res.json({ success: true, messageId: newId });
   } catch (error) {
+    console.error('API 錯誤:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -989,60 +977,11 @@ app.post('/api/messages/like', async (req, res) => {
     
     res.json({ success: true, likes: currentLikes + 1 });
   } catch (error) {
+    console.error('API 錯誤:', error);
     res.status(500).json({ error: error.message });
   }
 });
 
-// ========== 刪除照片 API（含權限驗證） ==========
-app.delete('/api/photo', async (req, res) => {
-  if (!googleSheetReady || !photosSheet) return res.status(503).json({ success: false });
-  try {
-    const { imageUrl, userId } = req.query;
-    if (!userId || !imageUrl) return res.status(400).json({ success: false, error: '缺少必要參數' });
-    
-    // 驗證請求者身份
-    const authHeader = req.headers.authorization;
-    if (!authHeader) {
-      return res.status(401).json({ success: false, error: '未提供憑證' });
-    }
-    
-    const token = authHeader.split(' ')[1];
-    let requestUserId = null;
-    
-    try {
-      const ticket = await googleClient.verifyIdToken({
-        idToken: token,
-        audience: process.env.GOOGLE_CLIENT_ID,
-      });
-      const payload = ticket.getPayload();
-      requestUserId = `google_${payload.sub}`;
-    } catch (e) {
-      return res.status(401).json({ success: false, error: '無效的憑證，請重新登入' });
-    }
-    
-    // 只能刪除自己的照片
-    if (requestUserId !== userId) {
-      return res.status(403).json({ success: false, error: '您沒有權限刪除別人的照片' });
-    }
-    
-    // 執行刪除
-    const rows = await photosSheet.getRows();
-    let targetRow = null;
-    for (const row of rows) {
-      if (row.get('圖片URL') === imageUrl && row.get('使用者ID') === userId) {
-        targetRow = row;
-        break;
-      }
-    }
-    if (!targetRow) {
-      return res.status(404).json({ success: false, message: '找不到該筆照片' });
-    }
-    await targetRow.delete();
-    res.json({ success: true });
-  } catch (error) { 
-    res.status(500).json({ success: false, error: error.message }); 
-  }
-});
 app.post('/api/messages/reply', async (req, res) => {
   if (!googleSheetReady || !messagesSheet) return res.status(503).json({ error: '服務未就緒' });
   try {
@@ -1076,6 +1015,7 @@ app.post('/api/messages/reply', async (req, res) => {
     
     res.json({ success: true, messageId: newId });
   } catch (error) {
+    console.error('API 錯誤:', error);
     res.status(500).json({ error: error.message });
   }
 });
