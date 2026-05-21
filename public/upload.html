@@ -73,49 +73,69 @@
             flex: 1;
         }
         
-        /* 上傳區域 */
+        /* 上傳卡片 - 縮小版 */
         .upload-card {
             background: white;
-            border-radius: 24px;
-            padding: 24px;
-            margin: 20px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            border-radius: 16px;
+            padding: 16px 20px;
+            margin: 16px 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            flex-wrap: wrap;
         }
         .upload-area {
+            flex: 1;
+            min-width: 150px;
             border: 2px dashed #ddd;
-            border-radius: 16px;
-            padding: 40px 20px;
+            border-radius: 40px;
+            padding: 10px 20px;
             text-align: center;
             cursor: pointer;
             transition: all 0.3s;
-            margin-bottom: 20px;
+            background: #fafafa;
         }
         .upload-area.drag-over { border-color: #667eea; background: #f0f0ff; }
-        .upload-icon { font-size: 48px; margin-bottom: 12px; }
-        .upload-text { color: #666; font-size: 14px; }
+        .upload-icon { font-size: 20px; display: inline-block; margin-right: 8px; vertical-align: middle; }
+        .upload-text { font-size: 14px; color: #666; display: inline-block; vertical-align: middle; }
         
-        .preview-container { text-align: center; margin-bottom: 20px; display: none; }
-        .preview-img { max-width: 100%; max-height: 250px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+        .preview-container { 
+            display: none; 
+            align-items: center;
+            gap: 12px;
+            flex: 1;
+        }
+        .preview-img { 
+            width: 50px; 
+            height: 50px; 
+            border-radius: 8px; 
+            object-fit: cover;
+        }
+        .preview-info {
+            flex: 1;
+            font-size: 14px;
+            color: #333;
+        }
         
         .caption-input {
-            width: 100%;
-            padding: 12px 16px;
+            flex: 2;
+            min-width: 180px;
+            padding: 10px 16px;
             border: 1px solid #ddd;
-            border-radius: 25px;
-            font-size: 16px;
-            margin-bottom: 20px;
+            border-radius: 40px;
+            font-size: 14px;
             outline: none;
         }
         .caption-input:focus { border-color: #667eea; }
         
         .upload-btn {
-            width: 100%;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
             border: none;
-            padding: 14px;
-            border-radius: 25px;
-            font-size: 16px;
+            padding: 10px 24px;
+            border-radius: 40px;
+            font-size: 14px;
             font-weight: bold;
             cursor: pointer;
             transition: opacity 0.3s;
@@ -123,79 +143,52 @@
         .upload-btn:disabled { opacity: 0.5; cursor: not-allowed; }
         
         .status {
-            margin-top: 12px;
+            margin-top: 8px;
             text-align: center;
-            font-size: 14px;
+            font-size: 12px;
             color: #666;
+            width: 100%;
         }
         
         .file-input { display: none; }
         
-        /* 我的照片區 */
-        .my-photos-section {
-            background: white;
-            border-radius: 24px;
-            padding: 24px;
-            margin: 20px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        /* 瀑布流照片牆 */
+        .user-photo-grid {
+            column-count: 3;
+            column-gap: 4px;
+            padding: 4px;
+            background: #fafafa;
         }
-        .section-title {
-            font-size: 18px;
-            font-weight: bold;
-            color: #333;
-            margin-bottom: 16px;
-            padding-bottom: 12px;
-            border-bottom: 2px solid #f0f0f0;
-        }
-        .photos-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-            gap: 12px;
-        }
-        .photo-item {
+        .user-photo-card {
+            break-inside: avoid;
+            margin-bottom: 4px;
             position: relative;
-            border-radius: 12px;
-            overflow: hidden;
-            background: #f5f5f5;
-            aspect-ratio: 1;
         }
-        .photo-item img {
+        .user-photo-card img {
             width: 100%;
-            height: 100%;
-            object-fit: cover;
             display: block;
+            border-radius: 8px;
         }
-        .photo-actions {
+        
+        .delete-btn, .set-avatar-btn, .tag-btn {
             position: absolute;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            background: linear-gradient(transparent, rgba(0,0,0,0.8));
-            padding: 8px;
-            display: flex;
-            justify-content: center;
-            gap: 12px;
-            opacity: 0;
-            transition: opacity 0.2s;
-        }
-        .photo-item:hover .photo-actions { opacity: 1; }
-        .photo-action-btn {
-            background: rgba(0,0,0,0.7);
+            top: 8px;
+            background: rgba(0,0,0,0.6);
+            color: white;
             border: none;
             border-radius: 50%;
-            width: 36px;
-            height: 36px;
-            font-size: 18px;
+            width: 32px;
+            height: 32px;
+            font-size: 16px;
             cursor: pointer;
+            z-index: 5;
             display: flex;
             align-items: center;
             justify-content: center;
-            transition: transform 0.2s;
         }
-        .photo-action-btn:hover { transform: scale(1.1); }
-        .delete-action { background: rgba(255,68,68,0.9); color: white; }
-        .avatar-action { background: rgba(102,126,234,0.9); color: white; }
-        .tag-action { background: rgba(0,0,0,0.8); color: white; }
+        .delete-btn { right: 8px; background: rgba(255,68,68,0.9); }
+        .set-avatar-btn { right: 48px; background: rgba(102,126,234,0.9); }
+        .tag-btn { right: 88px; background: rgba(0,0,0,0.6); }
         
         .photo-message {
             position: absolute;
@@ -209,23 +202,32 @@
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
+            border-radius: 8px 8px 0 0;
         }
         
-        .loading-spinner { text-align: center; padding: 40px; color: #999; }
-        .empty-message { text-align: center; padding: 40px; color: #999; }
-        
-        @media (max-width: 600px) {
-            .photos-grid { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); }
-            .photo-action-btn { width: 30px; height: 30px; font-size: 14px; }
+        @media (max-width: 768px) {
+            .user-photo-grid { column-count: 2; }
+            .delete-btn, .set-avatar-btn, .tag-btn { width: 28px; height: 28px; font-size: 12px; }
+            .set-avatar-btn { right: 44px; }
+            .tag-btn { right: 80px; }
             .personal-avatar { width: 50px; height: 50px; }
             .personal-name { font-size: 16px; }
+            .upload-card { flex-direction: column; align-items: stretch; }
+            .upload-area { padding: 8px 16px; }
+            .caption-input { width: 100%; }
+            .upload-btn { width: 100%; }
         }
+        
+        @media (min-width: 769px) { .user-photo-grid { column-count: 3; } }
         
         .modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.95); z-index: 1000; }
         .modal-content { position: relative; margin: auto; padding: 20px; width: 90%; max-width: 800px; top: 50%; transform: translateY(-50%); }
         .modal-image { width: 100%; border-radius: 10px; }
         .modal-info { color: white; padding: 15px; text-align: center; }
         .close { position: absolute; top: 20px; right: 35px; color: white; font-size: 40px; cursor: pointer; }
+        
+        .loading-spinner { text-align: center; padding: 40px; color: #999; }
+        .empty-message { text-align: center; padding: 40px; color: #999; }
         
         .confirm-overlay {
             position: fixed;
@@ -276,7 +278,7 @@
     </div>
 </div>
 
-<!-- 個人資訊列（與 album.html 風格一致） -->
+<!-- 個人資訊列 -->
 <div class="personal-nav">
     <div class="personal-nav-row1">
         <button class="back-arrow" onclick="goBack()">←</button>
@@ -285,15 +287,16 @@
     </div>
 </div>
 
+<!-- 上傳卡片 - 縮小版橫式 -->
 <div class="upload-card">
     <div id="uploadArea" class="upload-area" onclick="document.getElementById('fileInput').click()">
-        <div class="upload-icon">📷</div>
-        <div class="upload-text">點擊或拖曳照片至此</div>
-        <div class="upload-text" style="font-size:12px; margin-top:8px;">支援 JPG、PNG、GIF（最大 10MB）</div>
+        <span class="upload-icon">📷</span>
+        <span class="upload-text">點擊或拖曳照片</span>
     </div>
     
-    <div id="previewContainer" class="preview-container">
+    <div id="previewContainer" class="preview-container" style="display:none;">
         <img id="previewImg" class="preview-img">
+        <span id="previewFileName" class="preview-info"></span>
     </div>
     
     <input type="text" id="caption" class="caption-input" placeholder="照片說明（選填）" maxlength="100">
@@ -302,12 +305,9 @@
     <div id="status" class="status"></div>
 </div>
 
-<!-- 我的照片區 -->
-<div class="my-photos-section">
-    <div class="section-title">📷 我的照片</div>
-    <div id="myPhotosGrid" class="photos-grid">
-        <div class="loading-spinner">⏳ 載入中...</div>
-    </div>
+<!-- 我的照片 - 瀑布流 -->
+<div id="myPhotosContainer" class="user-photo-grid">
+    <div class="loading-spinner">⏳ 載入中...</div>
 </div>
 
 <!-- 照片詳情模態框 -->
@@ -347,10 +347,11 @@ const fileInput = document.getElementById('fileInput');
 const uploadArea = document.getElementById('uploadArea');
 const previewContainer = document.getElementById('previewContainer');
 const previewImg = document.getElementById('previewImg');
+const previewFileName = document.getElementById('previewFileName');
 const uploadBtn = document.getElementById('uploadBtn');
 const captionInput = document.getElementById('caption');
 const statusDiv = document.getElementById('status');
-const myPhotosGrid = document.getElementById('myPhotosGrid');
+const myPhotosContainer = document.getElementById('myPhotosContainer');
 const confirmOverlay = document.getElementById('confirmOverlay');
 const personalAvatar = document.getElementById('personalAvatar');
 const personalName = document.getElementById('personalName');
@@ -480,12 +481,12 @@ async function loadProfile() {
     }
 }
 
-// ========== 載入我的照片 ==========
+// ========== 載入我的照片（瀑布流）==========
 async function loadMyPhotos() {
     const userId = getCurrentUserId();
     if (!userId) return;
     
-    myPhotosGrid.innerHTML = '<div class="loading-spinner">⏳ 載入中...</div>';
+    myPhotosContainer.innerHTML = '<div class="loading-spinner">⏳ 載入中...</div>';
     
     try {
         const res = await fetch(API_BASE + `/api/photos/user/${encodeURIComponent(userId)}`);
@@ -493,13 +494,13 @@ async function loadMyPhotos() {
         renderMyPhotos();
     } catch (error) {
         console.error('載入照片失敗:', error);
-        myPhotosGrid.innerHTML = '<div class="empty-message">❌ 載入失敗，請重新整理</div>';
+        myPhotosContainer.innerHTML = '<div class="empty-message">❌ 載入失敗，請重新整理</div>';
     }
 }
 
 function renderMyPhotos() {
     if (!myPhotos || myPhotos.length === 0) {
-        myPhotosGrid.innerHTML = '<div class="empty-message">📸 暫無照片，快上傳第一張吧！</div>';
+        myPhotosContainer.innerHTML = '<div class="empty-message">📸 暫無照片，快上傳第一張吧！</div>';
         return;
     }
     
@@ -507,18 +508,18 @@ function renderMyPhotos() {
     myPhotos.forEach(photo => {
         const message = photo.message || '';
         html += `
-            <div class="photo-item" data-url="${photo.imageUrl}">
+            <div class="user-photo-card" data-url="${photo.imageUrl}" style="position:relative;">
                 ${message ? `<div class="photo-message" title="${escapeHtml(message)}">💬 ${escapeHtml(message.substring(0, 20))}${message.length > 20 ? '…' : ''}</div>` : ''}
-                <img src="${photo.imageUrl}" loading="lazy" onerror="this.src='https://via.placeholder.com/150'">
-                <div class="photo-actions">
-                    <button class="photo-action-btn delete-action" onclick="event.stopPropagation(); confirmDelete('${photo.imageUrl}')" title="刪除">🗑️</button>
-                    <button class="photo-action-btn avatar-action" onclick="event.stopPropagation(); setAsAvatar('${photo.imageUrl}')" title="設為頭像">👤</button>
-                    <button class="photo-action-btn tag-action" onclick="event.stopPropagation(); editTag('${photo.imageUrl}', '${photo.tag || ''}')" title="編輯標籤">🏷️</button>
+                <button class="delete-btn" onclick="event.stopPropagation(); confirmDelete('${photo.imageUrl}')" title="刪除">🗑️</button>
+                <button class="set-avatar-btn" onclick="event.stopPropagation(); setAsAvatar('${photo.imageUrl}')" title="設為頭像">👤</button>
+                <button class="tag-btn" onclick="event.stopPropagation(); editTag('${photo.imageUrl}', '${photo.tag || ''}')" title="編輯標籤">🏷️</button>
+                <div onclick="showPhotoDetail('${photo.imageUrl}', '${photo.userId}', '${photo.time}', '${(photo.message||'').replace(/'/g,"\\'")}')">
+                    <img src="${photo.imageUrl}" loading="lazy" onerror="this.src='https://via.placeholder.com/300'">
                 </div>
             </div>
         `;
     });
-    myPhotosGrid.innerHTML = html;
+    myPhotosContainer.innerHTML = html;
 }
 
 function showPhotoDetail(imgUrl, userId, time, msg) {
@@ -651,9 +652,10 @@ fileInput.addEventListener('change', (e) => {
         const reader = new FileReader();
         reader.onload = (ev) => {
             previewImg.src = ev.target.result;
-            previewContainer.style.display = 'block';
-            uploadBtn.disabled = false;
+            previewFileName.innerText = selectedFile.name.substring(0, 30);
+            previewContainer.style.display = 'flex';
             uploadArea.style.display = 'none';
+            uploadBtn.disabled = false;
         };
         reader.readAsDataURL(selectedFile);
     }
@@ -674,9 +676,10 @@ uploadArea.addEventListener('drop', (e) => {
         const reader = new FileReader();
         reader.onload = (ev) => {
             previewImg.src = ev.target.result;
-            previewContainer.style.display = 'block';
-            uploadBtn.disabled = false;
+            previewFileName.innerText = selectedFile.name.substring(0, 30);
+            previewContainer.style.display = 'flex';
             uploadArea.style.display = 'none';
+            uploadBtn.disabled = false;
         };
         reader.readAsDataURL(selectedFile);
         fileInput.files = e.dataTransfer.files;
@@ -711,7 +714,7 @@ uploadBtn.addEventListener('click', async () => {
             statusDiv.innerHTML = '✅ 上傳成功！';
             selectedFile = null;
             previewContainer.style.display = 'none';
-            uploadArea.style.display = 'block';
+            uploadArea.style.display = 'flex';
             captionInput.value = '';
             fileInput.value = '';
             uploadBtn.disabled = true;
