@@ -3,50 +3,88 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <title>📸 上傳與管理照片</title>
+    <title>📸 上傳照片 - 回憶照片牆</title>
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            padding: 20px;
-        }
-        .container {
-            max-width: 800px;
-            margin: 0 auto;
-        }
+        * { margin:0; padding:0; box-sizing:border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background: #fafafa; min-height: 100vh; }
         
-        /* 上傳卡片 */
-        .upload-card {
-            background: white;
-            border-radius: 24px;
-            padding: 24px;
-            margin-bottom: 24px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        /* 導航列 */
+        .navbar { background: white; border-bottom: 1px solid #dbdbdb; position: sticky; top: 0; z-index: 100; padding: 8px 16px; }
+        .navbar-content { display: flex; justify-content: space-between; align-items: center; }
+        .nav-left { display: flex; gap: 12px; align-items: center; }
+        .nav-right { display: flex; gap: 12px; align-items: center; }
+        
+        .nav-icon {
+            background: none;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            padding: 8px;
+            border-radius: 50%;
+            transition: all 0.2s;
+            width: 44px;
+            height: 44px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-decoration: none;
+            color: #333;
         }
-        .header {
+        .nav-icon:hover { background: #f0f0f0; transform: scale(1.05); }
+        
+        /* 個人資訊列 */
+        .personal-nav {
+            background: white;
+            border-bottom: 1px solid #dbdbdb;
+            padding: 12px 16px;
+            position: sticky;
+            top: 60px;
+            z-index: 99;
+        }
+        .personal-nav-row1 {
             display: flex;
             align-items: center;
             gap: 16px;
-            margin-bottom: 24px;
+            flex-wrap: wrap;
         }
-        .back-btn {
+        .back-arrow {
             background: none;
             border: none;
             font-size: 28px;
             cursor: pointer;
             padding: 8px;
             border-radius: 50%;
-            transition: background 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
-        .back-btn:hover { background: #f0f0f0; }
-        h1 { font-size: 22px; color: #333; flex: 1; }
+        .back-arrow:hover { background: #f0f0f0; }
+        .personal-avatar {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 3px solid #667eea;
+        }
+        .personal-name {
+            font-weight: bold;
+            font-size: 20px;
+            color: #333;
+            flex: 1;
+        }
         
+        /* 上傳區域 */
+        .upload-card {
+            background: white;
+            border-radius: 24px;
+            padding: 24px;
+            margin: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
         .upload-area {
             border: 2px dashed #ddd;
             border-radius: 16px;
-            padding: 30px 20px;
+            padding: 40px 20px;
             text-align: center;
             cursor: pointer;
             transition: all 0.3s;
@@ -91,25 +129,15 @@
             color: #666;
         }
         
-        .user-info {
-            background: #f5f5f5;
-            border-radius: 12px;
-            padding: 12px;
-            margin-bottom: 20px;
-            display: flex;
-            align-items: center;
-            gap: 12px;
-        }
-        .user-avatar { width: 44px; height: 44px; border-radius: 50%; object-fit: cover; }
-        .user-name { font-weight: bold; color: #333; flex: 1; font-size: 16px; }
-        .logout-link { color: #ff4444; text-decoration: none; font-size: 13px; cursor: pointer; }
+        .file-input { display: none; }
         
         /* 我的照片區 */
         .my-photos-section {
             background: white;
             border-radius: 24px;
             padding: 24px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            margin: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
         }
         .section-title {
             font-size: 18px;
@@ -150,9 +178,7 @@
             opacity: 0;
             transition: opacity 0.2s;
         }
-        .photo-item:hover .photo-actions {
-            opacity: 1;
-        }
+        .photo-item:hover .photo-actions { opacity: 1; }
         .photo-action-btn {
             background: rgba(0,0,0,0.7);
             border: none;
@@ -185,31 +211,25 @@
             text-overflow: ellipsis;
         }
         
-        .loading-spinner {
-            text-align: center;
-            padding: 40px;
-            color: #999;
-        }
-        .empty-message {
-            text-align: center;
-            padding: 40px;
-            color: #999;
-        }
-        
-        .file-input { display: none; }
+        .loading-spinner { text-align: center; padding: 40px; color: #999; }
+        .empty-message { text-align: center; padding: 40px; color: #999; }
         
         @media (max-width: 600px) {
             .photos-grid { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); }
             .photo-action-btn { width: 30px; height: 30px; font-size: 14px; }
+            .personal-avatar { width: 50px; height: 50px; }
+            .personal-name { font-size: 16px; }
         }
         
-        /* 確認對話框 */
+        .modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.95); z-index: 1000; }
+        .modal-content { position: relative; margin: auto; padding: 20px; width: 90%; max-width: 800px; top: 50%; transform: translateY(-50%); }
+        .modal-image { width: 100%; border-radius: 10px; }
+        .modal-info { color: white; padding: 15px; text-align: center; }
+        .close { position: absolute; top: 20px; right: 35px; color: white; font-size: 40px; cursor: pointer; }
+        
         .confirm-overlay {
             position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
+            inset: 0;
             background: rgba(0,0,0,0.5);
             z-index: 2000;
             display: none;
@@ -241,42 +261,61 @@
     </style>
 </head>
 <body>
-<div class="container">
-    <!-- 上傳卡片 -->
-    <div class="upload-card">
-        <div class="header">
-            <button class="back-btn" onclick="goBack()">←</button>
-            <h1>📸 上傳照片</h1>
+
+<!-- 頂部導航列 -->
+<div class="navbar">
+    <div class="navbar-content">
+        <div class="nav-left">
+            <button id="lineNavBtn" class="nav-icon" onclick="showMyAlbum()" title="LINE 個人相簿">👤</button>
+            <button id="googleNavBtn" class="nav-icon" onclick="handleGoogleAction()" title="Google 登入">🎯</button>
+            <a href="index.html" class="nav-icon" title="時間軸">🏠</a>
+            <a href="random.html" class="nav-icon" title="隨機探索">🎲</a>
+            <a href="group.html" class="nav-icon" title="群組成員">👥</a>
         </div>
-        
-        <div id="userInfo" class="user-info" style="display:none;">
-            <img id="userAvatar" class="user-avatar" src="">
-            <span id="userName" class="user-name"></span>
-            <a class="logout-link" onclick="logoutAndGoBack()">登出</a>
-        </div>
-        
-        <div id="uploadArea" class="upload-area" onclick="document.getElementById('fileInput').click()">
-            <div class="upload-icon">📷</div>
-            <div class="upload-text">點擊或拖曳照片至此</div>
-            <div class="upload-text" style="font-size:12px; margin-top:8px;">支援 JPG、PNG、GIF</div>
-        </div>
-        
-        <div id="previewContainer" class="preview-container">
-            <img id="previewImg" class="preview-img">
-        </div>
-        
-        <input type="text" id="caption" class="caption-input" placeholder="照片說明（選填）" maxlength="100">
-        <input type="file" id="fileInput" class="file-input" accept="image/*">
-        <button id="uploadBtn" class="upload-btn" disabled>上傳</button>
-        <div id="status" class="status"></div>
+        <div class="nav-right"></div>
+    </div>
+</div>
+
+<!-- 個人資訊列（與 album.html 風格一致） -->
+<div class="personal-nav">
+    <div class="personal-nav-row1">
+        <button class="back-arrow" onclick="goBack()">←</button>
+        <img id="personalAvatar" class="personal-avatar" src="https://via.placeholder.com/60">
+        <span id="personalName" class="personal-name">載入中...</span>
+    </div>
+</div>
+
+<div class="upload-card">
+    <div id="uploadArea" class="upload-area" onclick="document.getElementById('fileInput').click()">
+        <div class="upload-icon">📷</div>
+        <div class="upload-text">點擊或拖曳照片至此</div>
+        <div class="upload-text" style="font-size:12px; margin-top:8px;">支援 JPG、PNG、GIF（最大 10MB）</div>
     </div>
     
-    <!-- 我的照片區 -->
-    <div class="my-photos-section">
-        <div class="section-title">📷 我的照片</div>
-        <div id="myPhotosGrid" class="photos-grid">
-            <div class="loading-spinner">⏳ 載入中...</div>
-        </div>
+    <div id="previewContainer" class="preview-container">
+        <img id="previewImg" class="preview-img">
+    </div>
+    
+    <input type="text" id="caption" class="caption-input" placeholder="照片說明（選填）" maxlength="100">
+    <input type="file" id="fileInput" class="file-input" accept="image/*">
+    <button id="uploadBtn" class="upload-btn" disabled>上傳</button>
+    <div id="status" class="status"></div>
+</div>
+
+<!-- 我的照片區 -->
+<div class="my-photos-section">
+    <div class="section-title">📷 我的照片</div>
+    <div id="myPhotosGrid" class="photos-grid">
+        <div class="loading-spinner">⏳ 載入中...</div>
+    </div>
+</div>
+
+<!-- 照片詳情模態框 -->
+<div id="photoModal" class="modal">
+    <span class="close">&times;</span>
+    <div class="modal-content">
+        <img class="modal-image" id="modalImage">
+        <div class="modal-info" id="modalInfo"></div>
     </div>
 </div>
 
@@ -290,317 +329,407 @@
         </div>
     </div>
 </div>
+
 <script>
-    const API_BASE = 'https://photo.fernbrom.com';
-    
-    // ========== 設定 ==========
-    const GOOGLE_CLIENT_ID = '720728907627-ops2cmqo6cj13dib4b7s15h4r5h1h0t0.apps.googleusercontent.com';
-    
-    let selectedFile = null;
-    let googleUser = null;
-    let myPhotos = [];
-    let pendingDelete = { imageUrl: null, refreshCallback: null };
-    
-    // DOM 元素
-    const fileInput = document.getElementById('fileInput');
-    const uploadArea = document.getElementById('uploadArea');
-    const previewContainer = document.getElementById('previewContainer');
-    const previewImg = document.getElementById('previewImg');
-    const uploadBtn = document.getElementById('uploadBtn');
-    const captionInput = document.getElementById('caption');
-    const statusDiv = document.getElementById('status');
-    const myPhotosGrid = document.getElementById('myPhotosGrid');
-    const confirmOverlay = document.getElementById('confirmOverlay');
-    
-    // ========== 登入檢查 ==========
+// ========== 設定 ==========
+const API_BASE = 'https://photo.fernbrom.com';
+const GOOGLE_CLIENT_ID = '720728907627-ops2cmqo6cj13dib4b7s15h4r5h1h0t0.apps.googleusercontent.com';
+
+// ========== 全域變數 ==========
+let googleUser = null;
+let lineUserId = localStorage.getItem('userId');
+let myPhotos = [];
+let selectedFile = null;
+let pendingDelete = { imageUrl: null, refreshCallback: null };
+
+// ========== DOM 元素 ==========
+const fileInput = document.getElementById('fileInput');
+const uploadArea = document.getElementById('uploadArea');
+const previewContainer = document.getElementById('previewContainer');
+const previewImg = document.getElementById('previewImg');
+const uploadBtn = document.getElementById('uploadBtn');
+const captionInput = document.getElementById('caption');
+const statusDiv = document.getElementById('status');
+const myPhotosGrid = document.getElementById('myPhotosGrid');
+const confirmOverlay = document.getElementById('confirmOverlay');
+const personalAvatar = document.getElementById('personalAvatar');
+const personalName = document.getElementById('personalName');
+const photoModal = document.getElementById('photoModal');
+const modalImg = document.getElementById('modalImage');
+const modalInfo = document.getElementById('modalInfo');
+
+// ========== 輔助函數 ==========
+document.querySelector('.close').onclick = () => photoModal.style.display = "none";
+photoModal.onclick = (e) => { if(e.target === photoModal) photoModal.style.display = "none"; };
+
+function goBack() {
+    window.location.href = 'index.html';
+}
+
+function hideConfirm() {
+    confirmOverlay.style.display = 'none';
+    pendingDelete = { imageUrl: null, refreshCallback: null };
+}
+
+function formatFullDateTime(isoString) {
+    if(!isoString) return '';
+    const d = new Date(isoString);
+    return `${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日`;
+}
+
+function escapeHtml(t) {
+    if(!t) return '';
+    const div = document.createElement('div');
+    div.textContent = t;
+    return div.innerHTML;
+}
+
+// ========== LINE 個人相簿 ==========
+function showMyAlbum() {
+    if (!lineUserId) {
+        alert('請從 LINE 加入好友後，點擊個人連結使用');
+        return;
+    }
+    window.location.href = `album.html?userId=${lineUserId}`;
+}
+
+// ========== Google 登入 ==========
+function getAuthToken() {
+    const savedUser = localStorage.getItem('googleUser');
+    if (savedUser) {
+        try { return JSON.parse(savedUser).token; } catch(e) {}
+    }
+    return null;
+}
+
+function getCurrentUserId() {
+    const savedUser = localStorage.getItem('googleUser');
+    if (savedUser) {
+        try { return `google_${JSON.parse(savedUser).userId}`; } catch(e) {}
+    }
+    return null;
+}
+
+function initGoogleLogin() {
     const savedUser = localStorage.getItem('googleUser');
     if (savedUser) {
         try {
             googleUser = JSON.parse(savedUser);
-            document.getElementById('userInfo').style.display = 'flex';
-            document.getElementById('userAvatar').src = googleUser.avatarUrl || 'https://via.placeholder.com/44';
-            document.getElementById('userName').innerText = googleUser.displayName || googleUser.email;
-        } catch(e) {
-            window.location.href = '/index.html';
-        }
+            updateGoogleButton();
+            loadProfile();
+        } catch(e) { console.error(e); }
     } else {
         alert('請先點擊 🎯 登入 Google');
-        window.location.href = '/index.html';
+        window.location.href = 'index.html';
     }
-    
-    // ========== 導航函數 ==========
-    function goBack() {
-        window.location.href = '/index.html';
+}
+
+function handleGoogleAction() {
+    const token = getAuthToken();
+    if (token) {
+        window.location.href = 'upload.html';
+    } else {
+        const redirectUri = window.location.origin + '/auth-callback.html';
+        const authUrl = 'https://accounts.google.com/o/oauth2/v2/auth?' +
+            'client_id=' + encodeURIComponent(GOOGLE_CLIENT_ID) +
+            '&redirect_uri=' + encodeURIComponent(redirectUri) +
+            '&response_type=id_token' +
+            '&scope=openid email profile' +
+            '&nonce=' + Math.random().toString(36).substring(2) +
+            '&prompt=select_account';
+        window.location.href = authUrl;
     }
-    
-    function logoutAndGoBack() {
-        localStorage.removeItem('googleUser');
-        window.location.href = '/index.html';
+}
+
+function updateGoogleButton() {
+    const btn = document.getElementById('googleNavBtn');
+    if (!btn) return;
+    if (getAuthToken()) {
+        btn.innerHTML = '📸';
+        btn.title = '上傳照片';
+    } else {
+        btn.innerHTML = '🎯';
+        btn.title = 'Google 登入';
     }
+}
+
+// ========== 載入個人資料 ==========
+async function loadProfile() {
+    const userId = getCurrentUserId();
+    if (!userId) return;
     
-    function hideConfirm() {
-        confirmOverlay.style.display = 'none';
-        pendingDelete = { imageUrl: null, refreshCallback: null };
-    }
-    
-    // ========== 載入我的照片 ==========
-    async function loadMyPhotos() {
-        if (!googleUser) return;
+    try {
+        const res = await fetch(API_BASE + `/api/user/profile/${encodeURIComponent(userId)}`);
+        const profile = await res.json();
         
-        myPhotosGrid.innerHTML = '<div class="loading-spinner">⏳ 載入中...</div>';
+        if (profile.displayName) {
+            personalName.innerText = profile.displayName;
+        } else if (googleUser) {
+            personalName.innerText = googleUser.displayName || googleUser.email;
+        }
         
-        try {
-            const googleUserId = `google_${googleUser.userId}`;
-            const res = await fetch(API_BASE + `/api/photos/user/${encodeURIComponent(googleUserId)}`);
-            myPhotos = await res.json();
-            renderMyPhotos();
-        } catch (error) {
-            console.error('載入照片失敗:', error);
-            myPhotosGrid.innerHTML = '<div class="empty-message">❌ 載入失敗，請重新整理</div>';
+        if (profile.avatarUrl) {
+            personalAvatar.src = profile.avatarUrl;
+        } else if (googleUser && googleUser.avatarUrl) {
+            personalAvatar.src = googleUser.avatarUrl;
+        }
+    } catch(e) {
+        if (googleUser) {
+            personalName.innerText = googleUser.displayName || googleUser.email;
         }
     }
+}
+
+// ========== 載入我的照片 ==========
+async function loadMyPhotos() {
+    const userId = getCurrentUserId();
+    if (!userId) return;
     
-    // 渲染我的照片
-    function renderMyPhotos() {
-        if (!myPhotos || myPhotos.length === 0) {
-            myPhotosGrid.innerHTML = '<div class="empty-message">📸 暫無照片，快上傳第一張吧！</div>';
-            return;
-        }
-        
-        let html = '';
-        myPhotos.forEach(photo => {
-            const fullDate = photo.time ? new Date(photo.time).toLocaleDateString('zh-TW') : '';
-            const message = photo.message || '';
-            
-            html += `
-                <div class="photo-item" data-url="${photo.imageUrl}">
-                    ${message ? `<div class="photo-message" title="${escapeHtml(message)}">💬 ${escapeHtml(message.substring(0, 20))}${message.length > 20 ? '…' : ''}</div>` : ''}
-                    <img src="${photo.imageUrl}" loading="lazy" onerror="this.src='https://via.placeholder.com/150'">
-                    <div class="photo-actions">
-                        <button class="photo-action-btn delete-action" onclick="event.stopPropagation(); confirmDelete('${photo.imageUrl}')" title="刪除">🗑️</button>
-                        <button class="photo-action-btn avatar-action" onclick="event.stopPropagation(); setAsAvatar('${photo.imageUrl}')" title="設為頭像">👤</button>
-                        <button class="photo-action-btn tag-action" onclick="event.stopPropagation(); editTag('${photo.imageUrl}', '${photo.tag || ''}')" title="編輯標籤">🏷️</button>
-                    </div>
+    myPhotosGrid.innerHTML = '<div class="loading-spinner">⏳ 載入中...</div>';
+    
+    try {
+        const res = await fetch(API_BASE + `/api/photos/user/${encodeURIComponent(userId)}`);
+        myPhotos = await res.json();
+        renderMyPhotos();
+    } catch (error) {
+        console.error('載入照片失敗:', error);
+        myPhotosGrid.innerHTML = '<div class="empty-message">❌ 載入失敗，請重新整理</div>';
+    }
+}
+
+function renderMyPhotos() {
+    if (!myPhotos || myPhotos.length === 0) {
+        myPhotosGrid.innerHTML = '<div class="empty-message">📸 暫無照片，快上傳第一張吧！</div>';
+        return;
+    }
+    
+    let html = '';
+    myPhotos.forEach(photo => {
+        const message = photo.message || '';
+        html += `
+            <div class="photo-item" data-url="${photo.imageUrl}">
+                ${message ? `<div class="photo-message" title="${escapeHtml(message)}">💬 ${escapeHtml(message.substring(0, 20))}${message.length > 20 ? '…' : ''}</div>` : ''}
+                <img src="${photo.imageUrl}" loading="lazy" onerror="this.src='https://via.placeholder.com/150'">
+                <div class="photo-actions">
+                    <button class="photo-action-btn delete-action" onclick="event.stopPropagation(); confirmDelete('${photo.imageUrl}')" title="刪除">🗑️</button>
+                    <button class="photo-action-btn avatar-action" onclick="event.stopPropagation(); setAsAvatar('${photo.imageUrl}')" title="設為頭像">👤</button>
+                    <button class="photo-action-btn tag-action" onclick="event.stopPropagation(); editTag('${photo.imageUrl}', '${photo.tag || ''}')" title="編輯標籤">🏷️</button>
                 </div>
-            `;
+            </div>
+        `;
+    });
+    myPhotosGrid.innerHTML = html;
+}
+
+function showPhotoDetail(imgUrl, userId, time, msg) {
+    modalImg.src = imgUrl;
+    const fullDate = formatFullDateTime(time);
+    modalInfo.innerHTML = `<div>📅 ${fullDate}</div>${msg ? `<div>💬 ${escapeHtml(msg)}</div>` : ''}`;
+    photoModal.style.display = 'block';
+}
+
+// ========== 確認刪除 ==========
+function confirmDelete(imageUrl) {
+    pendingDelete = { 
+        imageUrl: imageUrl, 
+        refreshCallback: () => loadMyPhotos()
+    };
+    document.getElementById('confirmMessage').innerText = '確定要刪除這張照片嗎？';
+    const confirmBtn = document.getElementById('confirmDeleteBtn');
+    confirmBtn.onclick = () => executeDelete();
+    confirmOverlay.style.display = 'flex';
+}
+
+async function executeDelete() {
+    if (!pendingDelete.imageUrl) return;
+    const { imageUrl, refreshCallback } = pendingDelete;
+    hideConfirm();
+    
+    const token = getAuthToken();
+    if (!token) {
+        alert('請先登入');
+        return;
+    }
+    
+    const userId = getCurrentUserId();
+    
+    try {
+        const res = await fetch(API_BASE + `/api/photo?imageUrl=${encodeURIComponent(imageUrl)}&userId=${encodeURIComponent(userId)}`, {
+            method: 'DELETE',
+            headers: { 'Authorization': `Bearer ${token}` }
         });
-        myPhotosGrid.innerHTML = html;
+        const data = await res.json();
+        if (data.success) {
+            alert('✅ 照片已刪除');
+            if (refreshCallback) refreshCallback();
+        } else {
+            alert('刪除失敗：' + (data.error || data.message || '未知錯誤'));
+        }
+    } catch(e) {
+        console.error('刪除錯誤:', e);
+        alert('刪除失敗：' + e.message);
+    }
+}
+
+// ========== 設為頭像 ==========
+async function setAsAvatar(imageUrl) {
+    const token = getAuthToken();
+    if (!token) {
+        alert('請先登入');
+        return;
     }
     
-    function escapeHtml(text) {
-        if (!text) return '';
-        const div = document.createElement('div');
-        div.textContent = text;
-        return div.innerHTML;
+    const userId = getCurrentUserId();
+    
+    try {
+        const res = await fetch(API_BASE + '/api/user/avatar', {
+            method: 'POST',
+            headers: { 
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({ userId: userId, avatarUrl: imageUrl })
+        });
+        const data = await res.json();
+        if (data.success) {
+            alert('✅ 已設為頭像！');
+            personalAvatar.src = imageUrl;
+        } else {
+            alert('設定失敗：' + (data.error || '未知錯誤'));
+        }
+    } catch(e) {
+        alert('設定失敗');
     }
+}
+
+// ========== 編輯標籤 ==========
+async function editTag(imageUrl, currentTag) {
+    const newTag = prompt('選擇標籤：\n1. 風景\n2. 美食\n3. 人物\n\n或輸入其他文字', currentTag || '');
+    if (newTag === null) return;
     
-    // ========== 照片操作函數 ==========
+    let tag = '';
+    if (newTag === '1' || newTag === '風景') tag = '風景';
+    else if (newTag === '2' || newTag === '美食') tag = '美食';
+    else if (newTag === '3' || newTag === '人物') tag = '人物';
+    else tag = newTag.trim();
     
-    // 確認刪除
-    function confirmDelete(imageUrl) {
-        pendingDelete = { 
-            imageUrl: imageUrl, 
-            refreshCallback: () => {
-                loadMyPhotos();
-            }
-        };
-        document.getElementById('confirmMessage').innerText = '確定要刪除這張照片嗎？';
-        const confirmBtn = document.getElementById('confirmDeleteBtn');
-        confirmBtn.onclick = () => executeDelete();
-        confirmOverlay.style.display = 'flex';
-    }
-    
-    // ★★★ 執行刪除（修正版）★★★
-    async function executeDelete() {
-        if (!pendingDelete.imageUrl) return;
-        const { imageUrl, refreshCallback } = pendingDelete;
-        hideConfirm();
-        
-        if (!googleUser) {
+    if (tag) {
+        const token = getAuthToken();
+        if (!token) {
             alert('請先登入');
             return;
         }
         
-        const token = googleUser.token;
-        if (!token) {
-            alert('登入已過期，請重新登入');
-            window.location.href = '/index.html';
-            return;
-        }
-        
-        const userId = `google_${googleUser.userId}`;
+        const userId = getCurrentUserId();
         
         try {
-            const res = await fetch(API_BASE + `/api/photo?imageUrl=${encodeURIComponent(imageUrl)}&userId=${encodeURIComponent(userId)}`, {
-                method: 'DELETE',
-                headers: {
-                    'Authorization': `Bearer ${token}`
-                }
-            });
-            const data = await res.json();
-            if (data.success) {
-                alert('✅ 照片已刪除');
-                if (refreshCallback) refreshCallback();
-            } else {
-                alert('刪除失敗：' + (data.error || data.message || '未知錯誤'));
-            }
-        } catch(e) {
-            console.error('刪除錯誤:', e);
-            alert('刪除失敗：' + e.message);
-        }
-    }
-    
-    // 設為頭像
-    async function setAsAvatar(imageUrl) {
-        const googleUserId = `google_${googleUser.userId}`;
-        const token = googleUser.token;
-        
-        try {
-            const res = await fetch(API_BASE + '/api/user/avatar', { 
-                method: 'POST', 
+            const res = await fetch(API_BASE + '/api/photo/tag', {
+                method: 'POST',
                 headers: { 
                     'Content-Type': 'application/json',
                     'Authorization': `Bearer ${token}`
                 },
-                body: JSON.stringify({ userId: googleUserId, avatarUrl: imageUrl }) 
+                body: JSON.stringify({ imageUrl, userId: userId, tag })
             });
             const data = await res.json();
             if (data.success) {
-                alert('✅ 已設為頭像！');
-                document.getElementById('userAvatar').src = imageUrl;
+                alert('✅ 標籤已更新');
+                loadMyPhotos();
             } else {
-                alert('設定失敗：' + (data.error || '未知錯誤'));
+                alert('更新失敗：' + (data.error || '未知錯誤'));
             }
-        } catch (error) {
-            console.error('設定頭像錯誤:', error);
-            alert('設定失敗');
+        } catch(e) {
+            alert('更新失敗');
         }
     }
+}
+
+// ========== 上傳功能 ==========
+fileInput.addEventListener('change', (e) => {
+    if (e.target.files && e.target.files[0]) {
+        selectedFile = e.target.files[0];
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+            previewImg.src = ev.target.result;
+            previewContainer.style.display = 'block';
+            uploadBtn.disabled = false;
+            uploadArea.style.display = 'none';
+        };
+        reader.readAsDataURL(selectedFile);
+    }
+});
+
+uploadArea.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    uploadArea.classList.add('drag-over');
+});
+uploadArea.addEventListener('dragleave', () => {
+    uploadArea.classList.remove('drag-over');
+});
+uploadArea.addEventListener('drop', (e) => {
+    e.preventDefault();
+    uploadArea.classList.remove('drag-over');
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+        selectedFile = e.dataTransfer.files[0];
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+            previewImg.src = ev.target.result;
+            previewContainer.style.display = 'block';
+            uploadBtn.disabled = false;
+            uploadArea.style.display = 'none';
+        };
+        reader.readAsDataURL(selectedFile);
+        fileInput.files = e.dataTransfer.files;
+    }
+});
+
+uploadBtn.addEventListener('click', async () => {
+    if (!selectedFile) return;
     
-    // 編輯標籤
-    async function editTag(imageUrl, currentTag) {
-        const newTag = prompt('選擇標籤：\n1. 風景\n2. 美食\n3. 人物\n\n或輸入其他文字', currentTag || '');
-        if (newTag === null) return;
-        
-        let tag = '';
-        if (newTag === '1' || newTag === '風景') tag = '風景';
-        else if (newTag === '2' || newTag === '美食') tag = '美食';
-        else if (newTag === '3' || newTag === '人物') tag = '人物';
-        else tag = newTag.trim();
-        
-        if (tag) {
-            const googleUserId = `google_${googleUser.userId}`;
-            const token = googleUser.token;
-            
-            try {
-                const res = await fetch(API_BASE + '/api/photo/tag', { 
-                    method: 'POST', 
-                    headers: { 
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${token}`
-                    },
-                    body: JSON.stringify({ imageUrl, userId: googleUserId, tag }) 
-                });
-                const data = await res.json();
-                if (data.success) {
-                    alert('✅ 標籤已更新');
-                    loadMyPhotos();
-                } else {
-                    alert('更新失敗：' + (data.error || '未知錯誤'));
-                }
-            } catch (error) {
-                console.error('更新標籤錯誤:', error);
-                alert('更新失敗');
-            }
-        }
+    const token = getAuthToken();
+    if (!token) {
+        alert('請先登入');
+        return;
     }
     
-    // ========== 上傳功能 ==========
-    fileInput.addEventListener('change', (e) => {
-        if (e.target.files && e.target.files[0]) {
-            selectedFile = e.target.files[0];
-            const reader = new FileReader();
-            reader.onload = (ev) => {
-                previewImg.src = ev.target.result;
-                previewContainer.style.display = 'block';
-                uploadBtn.disabled = false;
-                uploadArea.style.display = 'none';
-            };
-            reader.readAsDataURL(selectedFile);
-        }
-    });
+    const formData = new FormData();
+    formData.append('photo', selectedFile);
+    formData.append('caption', captionInput.value);
     
-    uploadArea.addEventListener('dragover', (e) => {
-        e.preventDefault();
-        uploadArea.classList.add('drag-over');
-    });
-    uploadArea.addEventListener('dragleave', () => {
-        uploadArea.classList.remove('drag-over');
-    });
-    uploadArea.addEventListener('drop', (e) => {
-        e.preventDefault();
-        uploadArea.classList.remove('drag-over');
-        if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-            selectedFile = e.dataTransfer.files[0];
-            const reader = new FileReader();
-            reader.onload = (ev) => {
-                previewImg.src = ev.target.result;
-                previewContainer.style.display = 'block';
-                uploadBtn.disabled = false;
-                uploadArea.style.display = 'none';
-            };
-            reader.readAsDataURL(selectedFile);
-            fileInput.files = e.dataTransfer.files;
-        }
-    });
+    uploadBtn.disabled = true;
+    statusDiv.innerHTML = '⏳ 上傳中...';
     
-    uploadBtn.addEventListener('click', async () => {
-        if (!selectedFile) return;
-        if (!googleUser) {
-            alert('請先登入');
-            return;
-        }
+    try {
+        const res = await fetch(API_BASE + '/api/upload-web', {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${token}` },
+            body: formData
+        });
+        const data = await res.json();
         
-        const formData = new FormData();
-        formData.append('photo', selectedFile);
-        formData.append('caption', captionInput.value);
-        
-        uploadBtn.disabled = true;
-        statusDiv.innerHTML = '⏳ 上傳中...';
-        
-        try {
-            const res = await fetch(API_BASE + '/api/upload-web', {
-                method: 'POST',
-                headers: { 'Authorization': `Bearer ${googleUser.token}` },
-                body: formData
-            });
-            const data = await res.json();
-            
-            if (data.success) {
-                statusDiv.innerHTML = '✅ 上傳成功！';
-                selectedFile = null;
-                previewContainer.style.display = 'none';
-                uploadArea.style.display = 'block';
-                captionInput.value = '';
-                fileInput.value = '';
-                uploadBtn.disabled = true;
-                await loadMyPhotos();
-                setTimeout(() => {
-                    statusDiv.innerHTML = '';
-                }, 3000);
-            } else {
-                statusDiv.innerHTML = '❌ 上傳失敗：' + (data.error || '未知錯誤');
-                uploadBtn.disabled = false;
-            }
-        } catch (error) {
-            statusDiv.innerHTML = '❌ 上傳失敗：' + error.message;
+        if (data.success) {
+            statusDiv.innerHTML = '✅ 上傳成功！';
+            selectedFile = null;
+            previewContainer.style.display = 'none';
+            uploadArea.style.display = 'block';
+            captionInput.value = '';
+            fileInput.value = '';
+            uploadBtn.disabled = true;
+            await loadMyPhotos();
+            setTimeout(() => { statusDiv.innerHTML = ''; }, 3000);
+        } else {
+            statusDiv.innerHTML = '❌ 上傳失敗：' + (data.error || '未知錯誤');
             uploadBtn.disabled = false;
         }
-    });
-    
-    // ========== 初始化 ==========
-    loadMyPhotos();
-</script>
+    } catch (error) {
+        statusDiv.innerHTML = '❌ 上傳失敗：' + error.message;
+        uploadBtn.disabled = false;
+    }
+});
 
+// ========== 啟動 ==========
+initGoogleLogin();
+loadMyPhotos();
+</script>
 </body>
 </html>
