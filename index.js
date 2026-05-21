@@ -416,7 +416,51 @@ app.post('/webhook', webhookLimiter, express.json(), verifyLineSignature, async 
     }
   }
 });
-
+// ========== 即時更新 photos.json 到 GitHub ==========
+async function updatePhotosJson() {
+    try {
+        const githubToken = process.env.GH_PAT_TOKEN;
+        if (!githubToken) {
+            console.log('⚠️ 未設定 GH_PAT_TOKEN，跳過更新 photos.json');
+            return;
+        }
+        
+        // 從 API 取得最新照片
+        const baseUrl = `https://${process.env.RENDER_EXTERNAL_HOSTNAME || 'photo.fernbrom.com'}`;
+        const res = await axios.get(`${baseUrl}/api/photos`);
+        const photos = res.data;
+        
+        // 轉成 JSON 字串（壓縮格式）
+        const jsonContent = JSON.stringify(photos);
+        const content = Buffer.from(jsonContent).toString('base64');
+        
+        // 獲取當前 photos.json 的 SHA
+        let sha = '';
+        try {
+            const fileInfo = await axios.get(
+                'https://api.github.com/repos/fernbrom1127/linephotowall/contents/public/photos.json',
+                { headers: { 'Authorization': `Bearer ${githubToken}` } }
+            );
+            sha = fileInfo.data.sha;
+        } catch (e) {
+            console.log('📝 photos.json 不存在，將建立新檔案');
+        }
+        
+        // 更新或建立檔案
+        await axios.put(
+            'https://api.github.com/repos/fernbrom1127/linephotowall/contents/public/photos.json',
+            {
+                message: `📸 自動更新照片牆 (${new Date().toLocaleString()})`,
+                content: content,
+                sha: sha
+            },
+            { headers: { 'Authorization': `Bearer ${githubToken}` } }
+        );
+        console.log('✅ photos.json 已即時更新到 GitHub');
+    } catch (error) {
+        console.error('❌ 更新 photos.json 失敗:', error.response?.data || error.message);
+    }
+}
 // ========== 網頁上傳照片接口 ==========
 app.post('/api/upload-web', upload.single('photo'), async (req, res) => {
   try {
