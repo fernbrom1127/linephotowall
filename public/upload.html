@@ -72,6 +72,21 @@
             color: #333;
         }
         
+        /* 編輯名稱按鈕 */
+        .edit-name-btn {
+            background: none;
+            border: none;
+            font-size: 18px;
+            cursor: pointer;
+            padding: 8px;
+            border-radius: 50%;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            color: #667eea;
+        }
+        .edit-name-btn:hover { background: #f0f0f0; }
+        
         /* 登出按鈕 */
         .logout-btn {
             background: none;
@@ -215,7 +230,7 @@
             .upload-text { display: none; }
             .upload-area { padding: 8px 12px; }
             .upload-icon { font-size: 20px; }
-            .logout-btn { width: 40px; height: 40px; font-size: 18px; }
+            .logout-btn, .edit-name-btn { width: 40px; height: 40px; font-size: 18px; }
         }
         
         @media (min-width: 769px) { .user-photo-grid { column-count: 3; } }
@@ -278,12 +293,13 @@
     </div>
 </div>
 
-<!-- 個人資訊列（名稱 + 上傳按鈕 + 登出） -->
+<!-- 個人資訊列（名稱 + 編輯 + 上傳 + 登出） -->
 <div class="personal-nav">
     <div class="personal-nav-row1">
         <button class="back-arrow" onclick="goBack()">←</button>
         <img id="personalAvatar" class="personal-avatar" src="https://via.placeholder.com/60">
         <span id="personalName" class="personal-name">載入中...</span>
+        <button id="editNameBtn" class="edit-name-btn" onclick="editDisplayName()" title="編輯名稱" style="display:none;">✏️</button>
         
         <!-- 上傳區域 -->
         <div class="upload-card">
@@ -356,6 +372,7 @@ const myPhotosContainer = document.getElementById('myPhotosContainer');
 const confirmOverlay = document.getElementById('confirmOverlay');
 const personalAvatar = document.getElementById('personalAvatar');
 const personalName = document.getElementById('personalName');
+const editNameBtn = document.getElementById('editNameBtn');
 const photoModal = document.getElementById('photoModal');
 const modalImg = document.getElementById('modalImage');
 const modalInfo = document.getElementById('modalInfo');
@@ -461,6 +478,40 @@ function updateGoogleButton() {
     }
 }
 
+// ========== 編輯名稱 ==========
+async function editDisplayName() {
+    const newName = prompt('請輸入您希望顯示的名稱：', personalName.innerText);
+    if (newName && newName.trim()) {
+        const token = getAuthToken();
+        if (!token) {
+            alert('請先登入');
+            return;
+        }
+        
+        const userId = getCurrentUserId();
+        
+        try {
+            const res = await fetch(API_BASE + '/api/user/displayname', {
+                method: 'POST',
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({ userId: userId, displayName: newName.trim() })
+            });
+            const data = await res.json();
+            if (data.success) {
+                alert('✅ 名稱已更新');
+                personalName.innerText = newName.trim();
+            } else {
+                alert('更新失敗：' + (data.error || '未知錯誤'));
+            }
+        } catch(e) {
+            alert('更新失敗');
+        }
+    }
+}
+
 // ========== 載入個人資料 ==========
 async function loadProfile() {
     const userId = getCurrentUserId();
@@ -481,10 +532,14 @@ async function loadProfile() {
         } else if (googleUser && googleUser.avatarUrl) {
             personalAvatar.src = googleUser.avatarUrl;
         }
+        
+        // 顯示編輯名稱按鈕
+        editNameBtn.style.display = 'inline-flex';
     } catch(e) {
         if (googleUser) {
             personalName.innerText = googleUser.displayName || googleUser.email;
         }
+        editNameBtn.style.display = 'inline-flex';
     }
 }
 
