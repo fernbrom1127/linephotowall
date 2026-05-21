@@ -14,10 +14,7 @@
             margin: 0;
             color: white;
         }
-        .container {
-            text-align: center;
-            padding: 20px;
-        }
+        .container { text-align: center; padding: 20px; }
         .spinner {
             width: 40px;
             height: 40px;
@@ -27,9 +24,7 @@
             animation: spin 1s linear infinite;
             margin: 20px auto;
         }
-        @keyframes spin {
-            to { transform: rotate(360deg); }
-        }
+        @keyframes spin { to { transform: rotate(360deg); } }
     </style>
 </head>
 <body>
@@ -38,23 +33,48 @@
     <p id="message">登入驗證中...</p>
 </div>
 <script>
-// 從 URL 解析 id_token
 const hashParams = new URLSearchParams(window.location.hash.substring(1));
 const credential = hashParams.get('id_token');
 
 console.log('🔍 auth-callback.html 被載入');
-console.log('📍 hash:', window.location.hash);
 console.log('🔑 credential:', credential ? '有取得' : '無');
 
 if (credential) {
-    // 儲存到 localStorage
+    // 先儲存 token
     localStorage.setItem('pendingGoogleToken', credential);
     console.log('✅ 已儲存 pendingGoogleToken');
-    // ★★★ 修改這裡：改成導向根目錄 ★★★
-    window.location.href = '/';
+    
+    // 發送請求到後端獲取使用者資訊
+    fetch('/api/auth/google', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ credential: credential })
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.success) {
+            const googleUser = {
+                userId: data.userId,
+                displayName: data.displayName,
+                avatarUrl: data.avatarUrl,
+                email: data.email,
+                token: credential
+            };
+            localStorage.setItem('googleUser', JSON.stringify(googleUser));
+            localStorage.removeItem('pendingGoogleToken');
+            console.log('✅ 已儲存 googleUser');
+            window.location.href = '/index.html';
+        } else {
+            console.error('登入失敗:', data.error);
+            window.location.href = '/index.html';
+        }
+    })
+    .catch(err => {
+        console.error('錯誤:', err);
+        window.location.href = '/index.html';
+    });
 } else {
-    console.log('❌ 未取得 credential');
-    window.location.href = '/';
+    window.location.href = '/index.html';
 }
 </script>
 </body>
