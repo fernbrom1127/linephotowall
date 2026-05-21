@@ -32,7 +32,7 @@
         }
         .nav-icon:hover { background: #f0f0f0; transform: scale(1.05); }
         
-        /* 個人資訊列（名稱 + 上傳按鈕同一行） */
+        /* 個人資訊列 */
         .personal-nav {
             background: white;
             border-bottom: 1px solid #dbdbdb;
@@ -72,7 +72,24 @@
             color: #333;
         }
         
-        /* 上傳按鈕 - 放在名稱右邊 */
+        /* 登出按鈕 */
+        .logout-btn {
+            background: none;
+            border: none;
+            font-size: 20px;
+            cursor: pointer;
+            padding: 8px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #ff4444;
+            width: 44px;
+            height: 44px;
+        }
+        .logout-btn:hover { background: #ffe0e0; }
+        
+        /* 上傳區域 */
         .upload-card {
             margin-left: auto;
             display: flex;
@@ -198,6 +215,7 @@
             .upload-text { display: none; }
             .upload-area { padding: 8px 12px; }
             .upload-icon { font-size: 20px; }
+            .logout-btn { width: 40px; height: 40px; font-size: 18px; }
         }
         
         @media (min-width: 769px) { .user-photo-grid { column-count: 3; } }
@@ -260,14 +278,14 @@
     </div>
 </div>
 
-<!-- 個人資訊列（名稱 + 上傳按鈕同一行） -->
+<!-- 個人資訊列（名稱 + 上傳按鈕 + 登出） -->
 <div class="personal-nav">
     <div class="personal-nav-row1">
         <button class="back-arrow" onclick="goBack()">←</button>
         <img id="personalAvatar" class="personal-avatar" src="https://via.placeholder.com/60">
         <span id="personalName" class="personal-name">載入中...</span>
         
-        <!-- 上傳卡片放在名稱右邊 -->
+        <!-- 上傳區域 -->
         <div class="upload-card">
             <div id="uploadArea" class="upload-area" onclick="document.getElementById('fileInput').click()">
                 <span class="upload-icon">📷</span>
@@ -283,6 +301,9 @@
             <button id="uploadBtn" class="upload-btn" disabled>上傳</button>
             <div id="status" class="status"></div>
         </div>
+        
+        <!-- 登出按鈕 -->
+        <button class="logout-btn" onclick="logout()" title="登出">🚪</button>
     </div>
 </div>
 
@@ -363,6 +384,12 @@ function escapeHtml(t) {
     const div = document.createElement('div');
     div.textContent = t;
     return div.innerHTML;
+}
+
+// ========== 登出功能 ==========
+function logout() {
+    localStorage.removeItem('googleUser');
+    window.location.href = 'index.html';
 }
 
 // ========== LINE 個人相簿 ==========
@@ -677,7 +704,6 @@ uploadBtn.addEventListener('click', async () => {
     
     const formData = new FormData();
     formData.append('photo', selectedFile);
-    // 不再有 caption
     
     uploadBtn.disabled = true;
     statusDiv.innerHTML = '⏳ 上傳中...';
