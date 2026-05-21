@@ -147,11 +147,46 @@ function initGoogleLogin() {
     if (savedUser) {
         try {
             googleUser = JSON.parse(savedUser);
-            updateGoogleButton();
+            updateGoogleButton();  // ← 確保這行有執行
+            console.log('✅ 已讀取 googleUser，按鈕已更新');
         } catch(e) { console.error(e); }
     }
+    
+    // 處理 pending token（從舊流程來的）
+    const pendingToken = localStorage.getItem('pendingGoogleToken');
+    if (pendingToken) {
+        localStorage.removeItem('pendingGoogleToken');
+        handleGoogleCredential(pendingToken);
+    }
 }
-
+async function handleGoogleCredential(credential) {
+    try {
+        const res = await fetch(API_BASE + '/api/auth/google', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ credential: credential })
+        });
+        const data = await res.json();
+        
+        if (data.success) {
+            googleUser = {
+                userId: data.userId,
+                displayName: data.displayName,
+                avatarUrl: data.avatarUrl,
+                email: data.email,
+                token: credential
+            };
+            localStorage.setItem('googleUser', JSON.stringify(googleUser));
+            updateGoogleButton();
+            alert(`✅ 歡迎，${data.displayName || 'Google 用戶'}！`);
+        } else {
+            alert('登入失敗：' + (data.error || '未知錯誤'));
+        }
+    } catch (error) {
+        console.error('Google 登入錯誤:', error);
+        alert('登入失敗，請稍後再試');
+    }
+}
 function handleGoogleAction() {
     const token = getAuthToken();
     if (token) {
@@ -171,16 +206,22 @@ function handleGoogleAction() {
 
 function updateGoogleButton() {
     const btn = document.getElementById('googleNavBtn');
-    if (!btn) return;
-    if (getAuthToken()) {
+    if (!btn) {
+        console.log('⚠️ 找不到 googleNavBtn 元素');
+        return;
+    }
+    
+    const token = getAuthToken();
+    if (token) {
         btn.innerHTML = '📸';
         btn.title = '上傳照片';
+        console.log('✅ 按鈕已改為 📸');
     } else {
         btn.innerHTML = '🎯';
         btn.title = 'Google 登入';
+        console.log('✅ 按鈕為 🎯');
     }
 }
-
 // ========== 載入使用者名稱 ==========
 async function loadUsers() {
     try {
