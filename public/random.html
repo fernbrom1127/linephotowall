@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <title>🎲 隨機探索 - 回憶照片牆</title>
+    <title>🎲 隨機探索</title>
     <style>
         * { margin:0; padding:0; box-sizing:border-box; }
         body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background: #fafafa; min-height: 100vh; }
@@ -57,15 +57,20 @@
 </head>
 <body>
 
-<div class="nav-left">
-    <button id="lineNavBtn" class="nav-icon" onclick="showMyAlbum()" title="LINE 個人相簿">👤</button>
-    <button id="googleNavBtn" class="nav-icon" onclick="handleGoogleAction()" title="Google 登入">🎯</button>
-    <a href="index.html" class="nav-icon" title="時間軸">🏠</a>
-    <a href="random.html" class="nav-icon" title="隨機探索">🎲</a>
-    <a href="group.html" class="nav-icon" title="群組成員">👥</a>
+<div class="navbar">
+    <div class="navbar-content">
+        <div class="nav-left">
+            <button id="lineNavBtn" class="nav-icon" onclick="showMyAlbum()" title="LINE 個人相簿">👤</button>
+            <button id="googleNavBtn" class="nav-icon" onclick="handleGoogleAction()" title="Google 登入">🎯</button>
+            <a href="index.html" class="nav-icon" title="時間軸">🏠</a>
+            <a href="random.html" class="nav-icon active " title="隨機探索">🎲</a>
+            <a href="group.html" class="nav-icon" title="群組成員">👥</a>
+        </div>
+        <div class="nav-right"></div>
+    </div>
 </div>
 
-<div id="mainContainer" class="container"><div class="loading">🎲 隨機探索中...</div></div>
+<div id="mainContainer" class="container"><div class="loading">📷 載入中...</div></div>
 
 <div id="photoModal" class="modal">
     <span class="close">&times;</span>
@@ -78,13 +83,24 @@
 <button class="back-to-top" onclick="scrollToTop()">↑</button>
 
 <script>
+// ========== 設定 ==========
 const API_BASE = 'https://photo.fernbrom.com';
 const GOOGLE_CLIENT_ID = '720728907627-ops2cmqo6cj13dib4b7s15h4r5h1h0t0.apps.googleusercontent.com';
 
+// ========== 全域變數 ==========
 let googleUser = null;
+let lineUserId = localStorage.getItem('userId');
 let userNameMap = new Map();
 
-document.querySelector('.close').onclick = () => document.getElementById('photoModal').style.display = "none";
+// ========== DOM 元素 ==========
+const mainContainer = document.getElementById('mainContainer');
+const photoModal = document.getElementById('photoModal');
+const modalImg = document.getElementById('modalImage');
+const modalInfo = document.getElementById('modalInfo');
+
+// ========== 輔助函數 ==========
+document.querySelector('.close').onclick = () => photoModal.style.display = "none";
+photoModal.onclick = (e) => { if(e.target === photoModal) photoModal.style.display = "none"; };
 window.onscroll = () => { document.querySelector('.back-to-top').style.display = window.scrollY > 300 ? 'block' : 'none'; };
 function scrollToTop() { window.scrollTo({ top: 0, behavior: 'smooth' }); }
 
@@ -96,6 +112,7 @@ function formatFullDateTime(isoString) {
 
 function truncateUserId(id) {
     if(!id) return '匿名';
+    if(id === lineUserId) return '我';
     if(id.length > 12) return id.substring(0,8)+'...';
     return id;
 }
@@ -107,15 +124,37 @@ function escapeHtml(t) {
     return div.innerHTML;
 }
 
+// ========== LINE 個人相簿 ==========
+function showMyAlbum() {
+    if (!lineUserId) {
+        alert('請從 LINE 加入好友後，點擊個人連結使用');
+        return;
+    }
+    window.location.href = `album.html?userId=${lineUserId}`;
+}
+
+// ========== Google 登入 ==========
+function getAuthToken() {
+    const savedUser = localStorage.getItem('googleUser');
+    if (savedUser) {
+        try { return JSON.parse(savedUser).token; } catch(e) {}
+    }
+    return null;
+}
+
 function initGoogleLogin() {
     const savedUser = localStorage.getItem('googleUser');
     if (savedUser) {
-        try { googleUser = JSON.parse(savedUser); updateGoogleButton(); } catch(e) {}
+        try {
+            googleUser = JSON.parse(savedUser);
+            updateGoogleButton();
+        } catch(e) { console.error(e); }
     }
 }
 
 function handleGoogleAction() {
-    if (googleUser) {
+    const token = getAuthToken();
+    if (token) {
         window.location.href = 'upload.html';
     } else {
         const redirectUri = window.location.origin + '/auth-callback.html';
@@ -132,10 +171,28 @@ function handleGoogleAction() {
 
 function updateGoogleButton() {
     const btn = document.getElementById('googleNavBtn');
-    if (googleUser) btn.innerHTML = '📸';
-    else btn.innerHTML = '🎯';
+    if (!btn) return;
+    if (getAuthToken()) {
+        btn.innerHTML = '📸';
+        btn.title = '上傳照片';
+    } else {
+        btn.innerHTML = '🎯';
+        btn.title = 'Google 登入';
+    }
 }
 
+// ========== 載入使用者名稱 ==========
+async function loadUsers() {
+    try {
+        const res = await fetch(API_BASE + '/api/users');
+        const users = await res.json();
+        users.forEach(u => {
+            if(u.userId && u.displayName) userNameMap.set(u.userId, u.displayName);
+        });
+    } catch(e) {}
+}
+
+// ========== 照片渲染 ==========
 function renderPhotoGrid(photos) {
     if(!photos || photos.length === 0) return '<div class="loading">📸 暫無照片</div>';
     let html = '<div class="photo-grid">';
@@ -157,59 +214,40 @@ function renderPhotoGrid(photos) {
 }
 
 function showPhotoDetail(imgUrl, userId, time, msg) {
-    const modal = document.getElementById('photoModal');
-    const modalImg = document.getElementById('modalImage');
-    const modalInfo = document.getElementById('modalInfo');
     modalImg.src = imgUrl;
     const displayName = userNameMap.get(userId) || truncateUserId(userId);
     const fullDate = formatFullDateTime(time);
     modalInfo.innerHTML = `<div>👤 ${escapeHtml(displayName)}</div><div>📅 ${fullDate}</div>${msg ? `<div>💬 ${escapeHtml(msg)}</div>` : ''}`;
-    modal.style.display = 'block';
+    photoModal.style.display = 'block';
 }
 
-async function loadRandomPhotos() {
+// ========== ★★★ 只讀 photos.json ★★★ ==========
+async function loadPhotos() {
     try {
-        const staticRes = await fetch('/photos.json');
-        if (staticRes.ok) {
-            let photos = await staticRes.json();
-            if (photos && photos.length > 0) {
-                for (let i = photos.length - 1; i > 0; i--) {
-                    const j = Math.floor(Math.random() * (i + 1));
-                    [photos[i], photos[j]] = [photos[j], photos[i]];
-                }
-                document.getElementById('mainContainer').innerHTML = renderPhotoGrid(photos);
-                return;
+        const res = await fetch('/photos.json?t=' + Date.now());
+        if (res.ok) {
+            let photos = await res.json();
+            // 隨機排序
+            for (let i = photos.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [photos[i], photos[j]] = [photos[j], photos[i]];
             }
+            mainContainer.innerHTML = renderPhotoGrid(photos);
+            console.log('✅ 從 photos.json 載入', photos.length, '張照片');
+        } else {
+            throw new Error('JSON 載入失敗');
         }
-    } catch(e) {}
-    
-    try {
-        const apiRes = await fetch(API_BASE + '/api/photos');
-        let photos = await apiRes.json();
-        for (let i = photos.length - 1; i > 0; i--) {
-            const j = Math.floor(Math.random() * (i + 1));
-            [photos[i], photos[j]] = [photos[j], photos[i]];
-        }
-        document.getElementById('mainContainer').innerHTML = renderPhotoGrid(photos);
     } catch(e) {
-        document.getElementById('mainContainer').innerHTML = '<div class="loading">❌ 載入失敗</div>';
+        console.error('❌ 載入失敗:', e);
+        mainContainer.innerHTML = '<div class="loading">❌ 載入失敗，請重新整理</div>';
     }
 }
 
-async function loadUsers() {
-    try {
-        const res = await fetch(API_BASE + '/api/users');
-        const users = await res.json();
-        users.forEach(u => {
-            if(u.userId && u.displayName) userNameMap.set(u.userId, u.displayName);
-        });
-    } catch(e) {}
-}
-
+// ========== 啟動 ==========
 document.addEventListener('DOMContentLoaded', async function() {
     initGoogleLogin();
     await loadUsers();
-    await loadRandomPhotos();
+    await loadPhotos();
 });
 </script>
 </body>
