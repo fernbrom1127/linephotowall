@@ -66,8 +66,7 @@
             <a href="random.html" class="nav-icon" title="隨機探索">🎲</a>
             <a href="group.html" class="nav-icon" title="群組成員">👥</a>
         </div>
-        <div class="nav-right">
-        </div>
+        <div class="nav-right"></div>
     </div>
 </div>
 
@@ -84,25 +83,24 @@
 <button class="back-to-top" onclick="scrollToTop()">↑</button>
 
 <script>
-// ========== 設定 API 伺服器 ==========
+// ========== 設定 ==========
 const API_BASE = 'https://photo.fernbrom.com';
 const GOOGLE_CLIENT_ID = '720728907627-ops2cmqo6cj13dib4b7s15h4r5h1h0t0.apps.googleusercontent.com';
 
+// ========== 全域變數 ==========
 let googleUser = null;
+let lineUserId = localStorage.getItem('userId');
 let userNameMap = new Map();
-// ========== LINE 個人相簿 ==========
-let currentUserId = localStorage.getItem('userId');
 
-function showMyAlbum() {
-    if (!currentUserId) {
-        alert('請從 LINE 加入好友後，點擊個人連結使用');
-        return;
-    }
-    window.location.href = `album.html?userId=${currentUserId}`;
-}    
+// ========== DOM 元素 ==========
+const mainContainer = document.getElementById('mainContainer');
+const photoModal = document.getElementById('photoModal');
+const modalImg = document.getElementById('modalImage');
+const modalInfo = document.getElementById('modalInfo');
 
 // ========== 輔助函數 ==========
-document.querySelector('.close').onclick = () => document.getElementById('photoModal').style.display = "none";
+document.querySelector('.close').onclick = () => photoModal.style.display = "none";
+photoModal.onclick = (e) => { if(e.target === photoModal) photoModal.style.display = "none"; };
 window.onscroll = () => { document.querySelector('.back-to-top').style.display = window.scrollY > 300 ? 'block' : 'none'; };
 function scrollToTop() { window.scrollTo({ top: 0, behavior: 'smooth' }); }
 
@@ -114,6 +112,7 @@ function formatFullDateTime(isoString) {
 
 function truncateUserId(id) {
     if(!id) return '匿名';
+    if(id === lineUserId) return '我';
     if(id.length > 12) return id.substring(0,8)+'...';
     return id;
 }
@@ -125,25 +124,37 @@ function escapeHtml(t) {
     return div.innerHTML;
 }
 
+// ========== LINE 個人相簿 ==========
+function showMyAlbum() {
+    if (!lineUserId) {
+        alert('請從 LINE 加入好友後，點擊個人連結使用');
+        return;
+    }
+    window.location.href = `album.html?userId=${lineUserId}`;
+}
+
 // ========== Google 登入 ==========
+function getAuthToken() {
+    const savedUser = localStorage.getItem('googleUser');
+    if (savedUser) {
+        try { return JSON.parse(savedUser).token; } catch(e) {}
+    }
+    return null;
+}
+
 function initGoogleLogin() {
     const savedUser = localStorage.getItem('googleUser');
     if (savedUser) {
         try {
             googleUser = JSON.parse(savedUser);
             updateGoogleButton();
-        } catch(e) {}
-    }
-    
-    const pendingToken = localStorage.getItem('pendingGoogleToken');
-    if (pendingToken) {
-        localStorage.removeItem('pendingGoogleToken');
-        handleGoogleCredential(pendingToken);
+        } catch(e) { console.error(e); }
     }
 }
 
 function handleGoogleAction() {
-    if (googleUser) {
+    const token = getAuthToken();
+    if (token) {
         window.location.href = 'upload.html';
     } else {
         const redirectUri = window.location.origin + '/auth-callback.html';
@@ -158,51 +169,27 @@ function handleGoogleAction() {
     }
 }
 
-async function handleGoogleCredential(credential) {
-    const btn = document.getElementById('googleNavBtn');
-    const originalHtml = btn.innerHTML;
-    btn.innerHTML = '⏳';
-    btn.style.opacity = '1';
-    
-    try {
-        const res = await fetch(API_BASE + '/api/auth/google', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ credential: credential })
-        });
-        const data = await res.json();
-        
-        if (data.success) {
-            googleUser = {
-                userId: data.userId,
-                displayName: data.displayName,
-                avatarUrl: data.avatarUrl,
-                email: data.email,
-                token: credential
-            };
-            localStorage.setItem('googleUser', JSON.stringify(googleUser));
-            
-            // ★★★ 直接重新整理頁面，確保按鈕狀態正確 ★★★
-            window.location.reload();
-        } else {
-            alert('登入失敗：' + (data.error || '未知錯誤'));
-            btn.innerHTML = originalHtml;
-        }
-    } catch (error) {
-        console.error('Google 登入錯誤:', error);
-        alert('登入失敗，請稍後再試');
-        btn.innerHTML = originalHtml;
-    }
-}
 function updateGoogleButton() {
     const btn = document.getElementById('googleNavBtn');
-    if (googleUser) {
+    if (!btn) return;
+    if (getAuthToken()) {
         btn.innerHTML = '📸';
         btn.title = '上傳照片';
     } else {
         btn.innerHTML = '🎯';
         btn.title = 'Google 登入';
     }
+}
+
+// ========== 載入使用者名稱 ==========
+async function loadUsers() {
+    try {
+        const res = await fetch(API_BASE + '/api/users');
+        const users = await res.json();
+        users.forEach(u => {
+            if(u.userId && u.displayName) userNameMap.set(u.userId, u.displayName);
+        });
+    } catch(e) {}
 }
 
 // ========== 照片渲染 ==========
@@ -227,50 +214,29 @@ function renderPhotoGrid(photos) {
 }
 
 function showPhotoDetail(imgUrl, userId, time, msg) {
-    const modal = document.getElementById('photoModal');
-    const modalImg = document.getElementById('modalImage');
-    const modalInfo = document.getElementById('modalInfo');
     modalImg.src = imgUrl;
     const displayName = userNameMap.get(userId) || truncateUserId(userId);
     const fullDate = formatFullDateTime(time);
     modalInfo.innerHTML = `<div>👤 ${escapeHtml(displayName)}</div><div>📅 ${fullDate}</div>${msg ? `<div>💬 ${escapeHtml(msg)}</div>` : ''}`;
-    modal.style.display = 'block';
+    photoModal.style.display = 'block';
 }
 
-// ========== 載入照片 ==========
+// ========== ★★★ 只讀 photos.json ★★★ ==========
 async function loadPhotos() {
     try {
-        // 讀取靜態 JSON（瞬間載入）
-        const staticRes = await fetch('/photos.json');
-        if (staticRes.ok) {
-            const photos = await staticRes.json();
-            if (photos && photos.length > 0) {
-                photos.sort((a, b) => new Date(b.time) - new Date(a.time));
-                document.getElementById('mainContainer').innerHTML = renderPhotoGrid(photos);
-                return;
-            }
+        const res = await fetch('/photos.json?t=' + Date.now());
+        if (res.ok) {
+            const photos = await res.json();
+            photos.sort((a, b) => new Date(b.time) - new Date(a.time));
+            mainContainer.innerHTML = renderPhotoGrid(photos);
+            console.log('✅ 從 photos.json 載入', photos.length, '張照片');
+        } else {
+            throw new Error('JSON 載入失敗');
         }
-    } catch(e) {}
-    
-    // 備用：從 API 載入
-    try {
-        const apiRes = await fetch(API_BASE + '/api/photos');
-        const photos = await apiRes.json();
-        photos.sort((a, b) => new Date(b.time) - new Date(a.time));
-        document.getElementById('mainContainer').innerHTML = renderPhotoGrid(photos);
     } catch(e) {
-        document.getElementById('mainContainer').innerHTML = '<div class="loading">❌ 載入失敗</div>';
+        console.error('❌ 載入失敗:', e);
+        mainContainer.innerHTML = '<div class="loading">❌ 載入失敗，請重新整理</div>';
     }
-}
-
-async function loadUsers() {
-    try {
-        const res = await fetch(API_BASE + '/api/users');
-        const users = await res.json();
-        users.forEach(u => {
-            if(u.userId && u.displayName) userNameMap.set(u.userId, u.displayName);
-        });
-    } catch(e) {}
 }
 
 // ========== 啟動 ==========
